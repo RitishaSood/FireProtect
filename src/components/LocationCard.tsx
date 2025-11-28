@@ -11,6 +11,8 @@ interface LocationCardProps {
   status: "normal" | "warning" | "alert";
   latitude: number;
   longitude: number;
+  onCheckSensors?: (locationId: string) => void;
+  isChecking?: boolean;
 }
 
 const statusConfig = {
@@ -31,7 +33,7 @@ const statusConfig = {
   },
 };
 
-export const LocationCard = ({ id, name, region, status, latitude, longitude }: LocationCardProps) => {
+export const LocationCard = ({ id, name, region, status, latitude, longitude, onCheckSensors, isChecking }: LocationCardProps) => {
   const navigate = useNavigate();
   const config = statusConfig[status];
 
@@ -52,18 +54,34 @@ export const LocationCard = ({ id, name, region, status, latitude, longitude }: 
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            <p>Lat: {latitude.toFixed(6)}</p>
-            <p>Lng: {longitude.toFixed(6)}</p>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              <p>Lat: {latitude.toFixed(6)}</p>
+              <p>Lng: {longitude.toFixed(6)}</p>
+            </div>
           </div>
-          <Button 
-            size="sm" 
-            variant="outline"
-            onClick={() => navigate(`/map?location=${id}`)}
-          >
-            View on Map
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={() => navigate(`/map?location=${id}`)}
+              className="flex-1"
+            >
+              View on Map
+            </Button>
+            {onCheckSensors && (
+              <Button 
+                size="sm" 
+                variant="default"
+                onClick={() => onCheckSensors(id)}
+                disabled={isChecking}
+                className="flex-1"
+              >
+                {isChecking ? "Checking..." : "Check Sensors"}
+              </Button>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>

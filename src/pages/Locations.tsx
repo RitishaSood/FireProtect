@@ -20,6 +20,7 @@ const Locations = () => {
   const { toast } = useToast();
   const [locations, setLocations] = useState<Location[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [checkingLocation, setCheckingLocation] = useState<string | null>(null);
 
   useEffect(() => {
     fetchLocations();
@@ -43,6 +44,42 @@ const Locations = () => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCheckSensors = async (locationId: string) => {
+    setCheckingLocation(locationId);
+    try {
+      const { data, error } = await supabase.functions.invoke('alert-manager', {
+        body: { action: 'evaluate', locationId }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        if (data.created) {
+          toast({
+            title: "Alert Created!",
+            description: `New ${data.alert.alert_type} alert detected with ${data.alert.severity} severity.`,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Sensors Normal",
+            description: data.message || "All sensors within normal range.",
+          });
+        }
+        // Refresh locations to see updated status
+        await fetchLocations();
+      }
+    } catch (error) {
+      toast({
+        title: "Error checking sensors",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setCheckingLocation(null);
     }
   };
 
@@ -74,7 +111,12 @@ const Locations = () => {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {locations.map((location) => (
-              <LocationCard key={location.id} {...location} />
+              <LocationCard 
+                key={location.id} 
+                {...location} 
+                onCheckSensors={handleCheckSensors}
+                isChecking={checkingLocation === location.id}
+              />
             ))}
           </div>
         )}
