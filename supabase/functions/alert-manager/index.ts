@@ -29,33 +29,100 @@ serve(async (req) => {
     console.log('[Alert Manager] Request:', { action, locationId, alertId, status });
 
     if (action === 'evaluate') {
-      // Evaluate sensor data and create alerts if thresholds are crossed
-      const { data: location, error: locError } = await supabaseClient
+      // Fetch location data
+      const { data: location, error: locationError } = await supabaseClient
         .from('locations')
         .select('*')
         .eq('id', locationId)
         .single();
 
-      if (locError) throw locError;
+      if (locationError) throw locationError;
 
-      console.log('[Alert Manager] Evaluating location:', location.name);
-
-      // Call ThingSpeak service (placeholder)
-      // In production, this would fetch real sensor data
-      // const sensorData = await fetchFromThingSpeak(location);
-      
-      // For now, we'll use placeholder logic
-      console.log('[Alert Manager] TODO: Implement actual sensor data evaluation');
-      console.log('[Alert Manager] ThingSpeak integration required');
-
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'Alert evaluation completed (placeholder)',
-          note: 'Implement ThingSpeak integration to enable real sensor monitoring'
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      // Fetch latest sensor data from ThingSpeak
+      const { data: sensorData, error: sensorError } = await supabaseClient.functions.invoke(
+        'thingspeak-service',
+        {
+          body: { action: 'latest', location }
+        }
       );
+
+      console.log('[Alert Manager] Sensor data received:', sensorData);
+
+      if (sensorError || !sensorData?.success || !sensorData?.data) {
+        console.log('[Alert Manager] No sensor data available for location:', location.name);
+        return new Response(
+          JSON.stringify({ success: true, message: 'No sensor data available' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const sensors = sensorData.data;
+      
+      // Define thresholds for alerts
+      const thresholds = {
+        temperature: { warning: 40, critical: 60 },
+        gas: { warning: 300, critical: 500 },
+        flame: { detected: '1' }, // String value from sensor
+        humidity: { low: 20, high: 80 }
+      };
+
+      let alertType = null;
+      let severity = 'low';
+      
+      // Check for fire (flame detected)
+      if (sensors.flame === '1') {
+        alertType = 'fire';
+        severity = 'critical';
+      }
+      // Check for gas leak
+      else if (sensors.gas >= thresholds.gas.critical) {
+        alertType = 'gas_leak';
+        severity = 'critical';
+      } else if (sensors.gas >= thresholds.gas.warning) {
+        alertType = 'gas_leak';
+        severity = 'high';
+      }
+      // Check for high temperature
+      else if (sensors.temperature >= thresholds.temperature.critical) {
+        alertType = 'temperature';
+        severity = 'high';
+      } else if (sensors.temperature >= thresholds.temperature.warning) {
+        alertType = 'temperature';
+        severity = 'medium';
+      }
+
+      // Create alert if threshold exceeded
+      if (alertType) {
+        const { data: newAlert, error: alertError } = await supabaseClient
+          .from('alerts')
+          .insert({
+            location_id: locationId,
+            alert_type: alertType,
+            severity,
+            status: 'active',
+            sensor_values: sensors,
+            timestamp: new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (alertError) {
+          console.error('[Alert Manager] Error creating alert:', alertError);
+          throw alertError;
+        }
+
+        console.log('[Alert Manager] Alert created:', newAlert);
+        return new Response(
+          JSON.stringify({ success: true, alert: newAlert, created: true }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else {
+        console.log('[Alert Manager] Sensor values within normal range');
+        return new Response(
+          JSON.stringify({ success: true, message: 'All sensors within normal range', sensors }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     if (action === 'update') {
