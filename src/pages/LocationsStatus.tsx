@@ -9,9 +9,9 @@ import { RefreshCw, Thermometer, Droplets, Flame, Wind, Eye } from "lucide-react
 interface SensorData {
   field1: number; // Temperature
   field2: number; // Humidity
-  field3: number; // Flame
+  field3: string; // Flame (returns "FLAME" or "NO FLAME")
   field4: number; // Gas
-  field5: number; // PIR
+  field5: string; // PIR (returns "0" for detected, "1" for none)
   created_at: string;
 }
 
