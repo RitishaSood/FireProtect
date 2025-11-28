@@ -52,7 +52,7 @@ const Alerts = () => {
 
       const alerts = (data || []) as Alert[];
       setLiveAlerts(alerts.filter(a => a.status === "active" || a.status === "in_queue"));
-      setPastAlerts(alerts.filter(a => a.status === "resolved" || a.status === "false_alarm"));
+      setPastAlerts(alerts.filter(a => a.status === "resolved" || a.status === "false_alarm" || a.status === "unsolved"));
       setSolvedCases(alerts.filter(a => a.status === "resolved"));
       setUnsolvedCases(alerts.filter(a => a.status === "unsolved"));
     } catch (error) {

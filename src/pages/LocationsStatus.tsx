@@ -193,30 +193,21 @@ const LocationsStatus = () => {
                       </CardContent>
                     </Card>
 
-                   {/* <Card className="border-primary/20">
-                      <CardContent className="pt-6">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Flame className="h-5 w-5 text-destructive" />
-                          <span className="font-medium">Flame</span>
-                        </div>
-                        <p className="text-2xl font-bold">{data.field3 === 1 ? "Detected" : "None"}</p>
-                      </CardContent>
-                    </Card> */}
-                    <Card className={`border-primary/20 ${data.field3 === 1 ? "bg-red-100 border-red-500" : ""}`}>
+                    <Card className={`border-primary/20 ${data.field3 === "FLAME" ? "bg-red-100 border-red-500" : ""}`}>
                     <CardContent className="pt-6">
                         <div className="flex items-center gap-2 mb-2">
-                          <Flame className={`h-5 w-5 ${data.field3 === 1 ? "text-red-600" : "text-destructive"}`} />
+                          <Flame className={`h-5 w-5 ${data.field3 === "FLAME" ? "text-red-600" : "text-destructive"}`} />
                           <span className="font-medium">Flame</span>
                           
-                          {data.field3 === 1 && (
+                          {data.field3 === "FLAME" && (
                             <Badge variant="destructive" className="ml-auto animate-pulse">
                               🚨 Flame Detected
                             </Badge>
                           )}
                         </div>
 
-                        <p className={`text-2xl font-bold ${data.field3 === 1 ? "text-red-700" : ""}`}>
-                          {data.field3 === 1 ? "Detected" : "None"}
+                        <p className={`text-2xl font-bold ${data.field3 === "FLAME" ? "text-red-700" : ""}`}>
+                          {data.field3 === "FLAME" ? "Detected" : "None"}
                         </p>
                       </CardContent>
                     </Card>
@@ -232,13 +223,21 @@ const LocationsStatus = () => {
                       </CardContent>
                     </Card>
 
-                    <Card className="border-primary/20">
+                    <Card className={`border-primary/20 ${data.field5 === "0" ? "bg-blue-100 border-blue-500" : ""}`}>
                       <CardContent className="pt-6">
                         <div className="flex items-center gap-2 mb-2">
-                          <Eye className="h-5 w-5 text-primary" />
+                          <Eye className={`h-5 w-5 ${data.field5 === "0" ? "text-blue-600" : "text-primary"}`} />
                           <span className="font-medium">PIR Motion</span>
+                          
+                          {data.field5 === "0" && (
+                            <Badge variant="default" className="ml-auto animate-pulse bg-blue-600">
+                              👁️ Motion Detected
+                            </Badge>
+                          )}
                         </div>
-                        <p className="text-2xl font-bold">{data.field5 === 1 ? "Detected" : "None"}</p>
+                        <p className={`text-2xl font-bold ${data.field5 === "0" ? "text-blue-700" : ""}`}>
+                          {data.field5 === "0" ? "Detected" : "None"}
+                        </p>
                       </CardContent>
                     </Card>
                   </div>
