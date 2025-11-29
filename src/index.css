@@ -89,6 +89,23 @@ All colors MUST be HSL.
     }
   }
 
+  .blink-alert {
+    animation: blink-alert 1s ease-in-out infinite;
+  }
+
+  @keyframes blink-alert {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+    50% {
+      opacity: 0.6;
+      transform: scale(1.1);
+      box-shadow: 0 0 20px 8px rgba(239, 68, 68, 0.4);
+    }
+  }
+
   .glow-alert {
     box-shadow: var(--shadow-glow-alert);
   }

@@ -108,6 +108,11 @@ const MapView = () => {
       el.style.border = "3px solid white";
       el.style.cursor = "pointer";
       el.style.boxShadow = "0 2px 4px rgba(0,0,0,0.3)";
+      
+      // Add blinking animation for alert locations
+      if (location.status === "alert") {
+        el.style.animation = "blink-alert 1s ease-in-out infinite";
+      }
 
       const marker = new mapboxgl.Marker({ element: el })
         .setLngLat([location.longitude, location.latitude])
