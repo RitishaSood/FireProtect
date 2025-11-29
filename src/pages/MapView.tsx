@@ -40,10 +40,30 @@ const MapView = () => {
   const [nearestStation, setNearestStation] = useState<FireStation | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
 
   useEffect(() => {
     fetchData();
+    getUserLocation();
   }, []);
+
+  const getUserLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation([position.coords.longitude, position.coords.latitude]);
+        },
+        (error) => {
+          console.error("Error getting user location:", error);
+          toast({
+            title: "Location access denied",
+            description: "Please enable location access to see route from your current position",
+            variant: "destructive",
+          });
+        }
+      );
+    }
+  };
 
   useEffect(() => {
     const locationId = searchParams.get("location");
@@ -130,18 +150,40 @@ const MapView = () => {
         .addTo(map.current!);
     });
 
+    // Add marker for user's current location
+    if (userLocation) {
+      const userEl = document.createElement("div");
+      userEl.innerHTML = "📍";
+      userEl.style.fontSize = "32px";
+      userEl.style.cursor = "pointer";
+
+      new mapboxgl.Marker({ element: userEl })
+        .setLngLat(userLocation)
+        .setPopup(
+          new mapboxgl.Popup({ offset: 25 })
+            .setHTML(`
+              <div style="padding: 8px;">
+                <h3 style="font-weight: bold; margin-bottom: 4px;">Your Location</h3>
+                <p style="font-size: 12px; color: #666;">Current Position</p>
+              </div>
+            `)
+        )
+        .addTo(map.current!);
+    }
+
     // Fit map to show all locations
     if (locations.length > 0) {
       const bounds = new mapboxgl.LngLatBounds();
       locations.forEach((loc) => bounds.extend([loc.longitude, loc.latitude]));
       fireStations.forEach((station) => bounds.extend([station.fire_station_longitude, station.fire_station_latitude]));
+      if (userLocation) bounds.extend(userLocation);
       map.current.fitBounds(bounds, { padding: 50 });
     }
 
     return () => {
       map.current?.remove();
     };
-  }, [locations, fireStations]);
+  }, [locations, fireStations, userLocation]);
 
   const fetchData = async () => {
     try {
@@ -176,38 +218,55 @@ const MapView = () => {
   };
 
   const calculateNearestStation = (location: Location) => {
-    if (fireStations.length === 0) {
-      setNearestStation(null);
-      setDistance(null);
-      return;
-    }
-
-    let minDistance = Infinity;
-    let nearest: FireStation | null = null;
-
-    fireStations.forEach((station) => {
+    // Calculate distance from user's current location to the fire alert location
+    if (userLocation) {
       const dist = calculateDistance(
+        userLocation[1], // latitude
+        userLocation[0], // longitude
         location.latitude,
-        location.longitude,
-        station.fire_station_latitude,
-        station.fire_station_longitude
+        location.longitude
       );
+      setDistance(dist);
 
-      if (dist < minDistance) {
-        minDistance = dist;
-        nearest = station;
+      // Draw route from user location to fire alert location
+      if (map.current) {
+        drawRoute(userLocation, [location.longitude, location.latitude]);
       }
-    });
+    } else {
+      // Fallback: calculate nearest fire station
+      if (fireStations.length === 0) {
+        setNearestStation(null);
+        setDistance(null);
+        return;
+      }
 
-    setNearestStation(nearest);
-    setDistance(minDistance);
+      let minDistance = Infinity;
+      let nearest: FireStation | null = null;
 
-    // Draw route on map
-    if (nearest && map.current) {
-      drawRoute(
-        [location.longitude, location.latitude],
-        [nearest.fire_station_longitude, nearest.fire_station_latitude]
-      );
+      fireStations.forEach((station) => {
+        const dist = calculateDistance(
+          location.latitude,
+          location.longitude,
+          station.fire_station_latitude,
+          station.fire_station_longitude
+        );
+
+        if (dist < minDistance) {
+          minDistance = dist;
+          nearest = station;
+        }
+      });
+
+      setNearestStation(nearest);
+      setDistance(minDistance);
+
+      // Draw route on map
+      if (nearest && map.current) {
+        drawRoute(
+          [location.longitude, location.latitude],
+          [nearest.fire_station_longitude, nearest.fire_station_latitude]
+        );
+      }
     }
   };
 
@@ -256,9 +315,9 @@ const MapView = () => {
         "line-cap": "round",
       },
       paint: {
-        "line-color": "#3b82f6",
-        "line-width": 4,
-        "line-dasharray": [2, 2],
+        "line-color": "#ef4444",
+        "line-width": 5,
+        "line-dasharray": [1, 1],
       },
     });
 
@@ -381,7 +440,35 @@ const MapView = () => {
                     </Badge>
                   </div>
 
-                  {nearestStation && distance !== null ? (
+                  {userLocation && distance !== null ? (
+                    <>
+                      <div className="border-t pt-3">
+                        <span className="text-sm text-muted-foreground">From Your Location</span>
+                        <p className="font-medium flex items-center gap-2">
+                          📍 Current Position
+                        </p>
+                      </div>
+
+                      <div>
+                        <span className="text-sm text-muted-foreground">Distance to Alert</span>
+                        <p className="font-medium text-lg text-destructive">{distance.toFixed(2)} km</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Estimated travel time: {Math.ceil(distance * 2)} mins
+                        </p>
+                      </div>
+
+                      <Button 
+                        className="w-full" 
+                        onClick={() => {
+                          const url = `https://www.google.com/maps/dir/?api=1&origin=${userLocation[1]},${userLocation[0]}&destination=${selectedLocation.latitude},${selectedLocation.longitude}`;
+                          window.open(url, "_blank");
+                        }}
+                      >
+                        <Navigation className="h-4 w-4 mr-2" />
+                        Navigate with Google Maps
+                      </Button>
+                    </>
+                  ) : !userLocation && distance !== null && nearestStation ? (
                     <>
                       <div className="border-t pt-3">
                         <span className="text-sm text-muted-foreground">Nearest Fire Station</span>
@@ -412,7 +499,7 @@ const MapView = () => {
                   ) : (
                     <div className="border-t pt-3">
                       <p className="text-sm text-muted-foreground">
-                        No fire stations configured with coordinates
+                        Enable location access to see route from your current position
                       </p>
                     </div>
                   )}
