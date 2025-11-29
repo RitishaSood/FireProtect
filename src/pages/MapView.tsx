@@ -287,13 +287,102 @@ const MapView = () => {
   const drawRoute = (start: [number, number], end: [number, number]) => {
     if (!map.current) return;
 
-    // Remove existing route layer if present
+    // Remove existing route layers if present
+    if (map.current.getLayer("route-outline")) {
+      map.current.removeLayer("route-outline");
+    }
     if (map.current.getLayer("route")) {
       map.current.removeLayer("route");
+    }
+    if (map.current.getSource("route")) {
       map.current.removeSource("route");
     }
 
-    // Add route as a simple line
+    // Fetch route from MapTiler routing API (uses shortest path algorithms on road networks)
+    const routeUrl = `https://api.maptiler.com/routing/driving/${start[0]},${start[1]};${end[0]},${end[1]}.json?key=${MAPTILER_KEY}`;
+
+    fetch(routeUrl)
+      .then((response) => response.json())
+      .then((data) => {
+        if (!data.routes || data.routes.length === 0) {
+          drawStraightLine(start, end);
+          return;
+        }
+
+        const route = data.routes[0];
+        const coordinates = route.geometry.coordinates;
+
+        // Add route using actual road geometry
+        map.current!.addSource("route", {
+          type: "geojson",
+          data: {
+            type: "Feature",
+            properties: {
+              distance: route.distance,
+              duration: route.duration,
+            },
+            geometry: {
+              type: "LineString",
+              coordinates: coordinates,
+            },
+          },
+        });
+
+        // Add white outline
+        map.current!.addLayer({
+          id: "route-outline",
+          type: "line",
+          source: "route",
+          layout: {
+            "line-join": "round",
+            "line-cap": "round",
+          },
+          paint: {
+            "line-color": "#ffffff",
+            "line-width": 8,
+            "line-opacity": 0.6,
+          },
+        });
+
+        // Add main route line
+        map.current!.addLayer({
+          id: "route",
+          type: "line",
+          source: "route",
+          layout: {
+            "line-join": "round",
+            "line-cap": "round",
+          },
+          paint: {
+            "line-color": "#ef4444",
+            "line-width": 5,
+            "line-opacity": 0.9,
+          },
+        });
+
+        // Fit map to route
+        const bounds = new mapboxgl.LngLatBounds();
+        coordinates.forEach((coord: [number, number]) => bounds.extend(coord));
+        map.current!.fitBounds(bounds, { padding: 100 });
+
+        // Update with actual road distance
+        const distanceKm = route.distance / 1000;
+        setDistance(distanceKm);
+      })
+      .catch((error) => {
+        console.error("Routing error:", error);
+        toast({
+          title: "Routing unavailable",
+          description: "Showing straight-line distance",
+          variant: "default",
+        });
+        drawStraightLine(start, end);
+      });
+  };
+
+  const drawStraightLine = (start: [number, number], end: [number, number]) => {
+    if (!map.current) return;
+
     map.current.addSource("route", {
       type: "geojson",
       data: {
@@ -317,11 +406,10 @@ const MapView = () => {
       paint: {
         "line-color": "#ef4444",
         "line-width": 5,
-        "line-dasharray": [1, 1],
+        "line-dasharray": [2, 2],
       },
     });
 
-    // Fit map to show both points
     const bounds = new mapboxgl.LngLatBounds();
     bounds.extend(start);
     bounds.extend(end);
