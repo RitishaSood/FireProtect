@@ -34,6 +34,7 @@ const MapView = () => {
   const { toast } = useToast();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
+  const markersRef = useRef<mapboxgl.Marker[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [fireStations, setFireStations] = useState<FireStation[]>([]);
   const [alertLocationIds, setAlertLocationIds] = useState<string[]>([]);
@@ -90,9 +91,12 @@ const MapView = () => {
     }
   }, [searchParams, locations, fireStations]);
 
+  // Initialize map once
   useEffect(() => {
-    if (!mapContainer.current || locations.length === 0) return;
+    if (!mapContainer.current || map.current) return;
 
+    console.log('[MapView] Initializing map');
+    
     // Set MapTiler access token
     mapboxgl.accessToken = MAPTILER_KEY;
 
@@ -106,10 +110,38 @@ const MapView = () => {
 
     map.current.addControl(new mapboxgl.NavigationControl(), "top-right");
 
+    return () => {
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
+    };
+  }, []);
+
+  // Update markers when locations or alerts change
+  useEffect(() => {
+    if (!map.current || locations.length === 0) {
+      console.log('[MapView] Map not ready or no locations:', { mapReady: !!map.current, locationCount: locations.length });
+      return;
+    }
+
+    console.log('[MapView] Updating markers. Locations:', locations.length, 'Alert locations:', alertLocationIds.length);
+
+    // Remove existing markers
+    markersRef.current.forEach(marker => marker.remove());
+    markersRef.current = [];
+
     // Add markers for fire detection locations
     locations.forEach((location) => {
       const hasActiveAlert = alertLocationIds.includes(location.id);
       const isAlertLocation = hasActiveAlert || location.status === "alert";
+
+      console.log(`[MapView] Location ${location.name}:`, {
+        hasActiveAlert,
+        status: location.status,
+        isAlertLocation,
+        coords: [location.latitude, location.longitude]
+      });
 
       const color =
         isAlertLocation ? "#ef4444" :
@@ -139,7 +171,7 @@ const MapView = () => {
               <div style="padding: 8px;">
                 <h3 style="font-weight: bold; margin-bottom: 4px;">${location.name}</h3>
                 <p style="font-size: 12px; color: #666;">${location.region}</p>
-                <p style="font-size: 12px; margin-top: 4px;">Status: <strong>${location.status}</strong></p>
+                <p style="font-size: 12px; margin-top: 4px;">Status: <strong>${isAlertLocation ? 'ALERT' : location.status}</strong></p>
               </div>
             `)
         )
@@ -149,6 +181,8 @@ const MapView = () => {
         setSelectedLocation(location);
         calculateNearestStation(location);
       });
+
+      markersRef.current.push(marker);
     });
 
     // Add markers for fire stations
@@ -158,7 +192,7 @@ const MapView = () => {
       el.style.fontSize = "28px";
       el.style.cursor = "pointer";
 
-      new mapboxgl.Marker({ element: el })
+      const marker = new mapboxgl.Marker({ element: el })
         .setLngLat([station.fire_station_longitude, station.fire_station_latitude])
         .setPopup(
           new mapboxgl.Popup({ offset: 25 })
@@ -170,6 +204,8 @@ const MapView = () => {
             `)
         )
         .addTo(map.current!);
+
+      markersRef.current.push(marker);
     });
 
     // Add marker for user's current location
@@ -179,7 +215,7 @@ const MapView = () => {
       userEl.style.fontSize = "32px";
       userEl.style.cursor = "pointer";
 
-      new mapboxgl.Marker({ element: userEl })
+      const marker = new mapboxgl.Marker({ element: userEl })
         .setLngLat(userLocation)
         .setPopup(
           new mapboxgl.Popup({ offset: 25 })
@@ -191,6 +227,8 @@ const MapView = () => {
             `)
         )
         .addTo(map.current!);
+
+      markersRef.current.push(marker);
     }
 
     // Fit map to show all locations
@@ -201,10 +239,6 @@ const MapView = () => {
       if (userLocation) bounds.extend(userLocation);
       map.current.fitBounds(bounds, { padding: 50 });
     }
-
-    return () => {
-      map.current?.remove();
-    };
   }, [locations, fireStations, userLocation, alertLocationIds]);
 
   const fetchData = async () => {
