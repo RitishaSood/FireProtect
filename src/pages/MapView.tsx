@@ -59,6 +59,9 @@ const MapView = () => {
   useEffect(() => {
     if (!mapContainer.current || locations.length === 0) return;
 
+    // Set MapTiler access token
+    mapboxgl.accessToken = MAPTILER_KEY;
+
     // Initialize map with MapTiler
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
