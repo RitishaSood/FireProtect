@@ -13,21 +13,32 @@ export const GlobalAlertListener = () => {
       const alert = payload.new;
       const alertId = alert.id;
       
+      console.log('Alert received:', { alertId, isUpdate, status: alert.status, type: alert.alert_type });
+      
       // For updates, only handle status changes to solved/unsolved (remove from shown list)
       if (isUpdate) {
         if (alert.status === 'solved' || alert.status === 'unsolved') {
+          console.log('Removing alert from shown list:', alertId);
           shownAlerts.current.delete(alertId);
         }
         return; // Don't show notifications for updates
       }
       
-      // Only show notification once per alert ID and only for active alerts
-      if (shownAlerts.current.has(alertId) || alert.status !== 'active') {
+      // Only show notification once per alert ID
+      // Show for active, in queue, or any status that's not solved/unsolved
+      if (shownAlerts.current.has(alertId)) {
+        console.log('Alert already shown:', alertId);
+        return;
+      }
+      
+      if (alert.status === 'solved' || alert.status === 'unsolved') {
+        console.log('Skipping solved/unsolved alert:', alertId);
         return;
       }
       
       // Mark this alert as shown
       shownAlerts.current.add(alertId);
+      console.log('Showing notification for alert:', alertId);
       
       // Fetch location name
       const { data: location } = await supabase
