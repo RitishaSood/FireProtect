@@ -7,69 +7,77 @@ import { useNavigate } from "react-router-dom";
 export const GlobalAlertListener = () => {
   const navigate = useNavigate();
   const shownAlerts = useRef<Set<string>>(new Set());
+  const alertToasts = useRef<Map<string, { dismiss: () => void; update: (props: any) => void }>>(new Map());
 
   useEffect(() => {
     const handleAlert = async (payload: any, isUpdate: boolean = false) => {
       const alert = payload.new;
-      const alertId = alert.id;
-      
-      console.log('Alert received:', { alertId, isUpdate, status: alert.status, type: alert.alert_type });
-      
-      // For updates, only handle status changes to solved/unsolved (remove from shown list)
-      if (isUpdate) {
-        if (alert.status === 'solved' || alert.status === 'unsolved') {
-          console.log('Removing alert from shown list:', alertId);
-          shownAlerts.current.delete(alertId);
+      const alertId = alert.id as string;
+      const status = alert.status as string | null;
+      const eventType = (payload.eventType || payload.type || (isUpdate ? "UPDATE" : "INSERT")) as string;
+
+      console.log("Alert received:", { alertId, eventType, status, type: alert.alert_type });
+
+      // If alert is solved/unsolved, dismiss any existing toast and stop
+      if (status === "solved" || status === "unsolved") {
+        const existing = alertToasts.current.get(alertId);
+        if (existing) {
+          console.log("Dismissing toast for resolved alert:", alertId);
+          existing.dismiss();
+          alertToasts.current.delete(alertId);
         }
-        return; // Don't show notifications for updates
-      }
-      
-      // Only show notification once per alert ID
-      // Show for active, in queue, or any status that's not solved/unsolved
-      if (shownAlerts.current.has(alertId)) {
-        console.log('Alert already shown:', alertId);
+        shownAlerts.current.delete(alertId);
         return;
       }
-      
-      if (alert.status === 'solved' || alert.status === 'unsolved') {
-        console.log('Skipping solved/unsolved alert:', alertId);
-        return;
-      }
-      
-      // Mark this alert as shown
+
+      // From here on, we handle active / in-queue alerts and keep a single toast per alert
       shownAlerts.current.add(alertId);
-      console.log('Showing notification for alert:', alertId);
       
       // Fetch location name
       const { data: location } = await supabase
-        .from('locations')
-        .select('name')
-        .eq('id', alert.location_id)
+        .from("locations")
+        .select("name")
+        .eq("id", alert.location_id)
         .single();
 
-      const locationName = location?.name || 'Unknown Location';
-      
+      const locationName = location?.name || "Unknown Location";
+
       // Determine title based on alert type
-      let title = '';
-      
+      let title = "";
+
       switch (alert.alert_type) {
-        case 'fire':
-          title = '🔥 FIRE DETECTED';
+        case "fire":
+          title = "🔥 FIRE DETECTED";
           break;
-        case 'gas_leak':
-          title = '💨 GAS LEAK DETECTED';
+        case "gas_leak":
+          title = "💨 GAS LEAK DETECTED";
           break;
-        case 'temperature':
-          title = '🌡️ HIGH TEMPERATURE';
+        case "temperature":
+          title = "🌡️ HIGH TEMPERATURE";
           break;
         default:
-          title = '⚠️ ALERT';
+          title = "⚠️ ALERT";
       }
 
-      // Show toast notification (persists until manually dismissed)
-      toast({
+      const description = `Location: ${locationName}\nSeverity: ${alert.severity?.toString().toUpperCase()}`;
+
+      const existing = alertToasts.current.get(alertId);
+
+      if (existing) {
+        console.log("Updating existing alert toast:", alertId);
+        existing.update({
+          title,
+          description,
+          variant: "destructive",
+          open: true,
+        });
+        return;
+      }
+
+      console.log("Creating new alert toast:", alertId);
+      const newToast = toast({
         title,
-        description: `Location: ${locationName}\nSeverity: ${alert.severity.toUpperCase()}`,
+        description,
         variant: "destructive",
         action: (
           <button
@@ -81,9 +89,11 @@ export const GlobalAlertListener = () => {
         ),
       });
 
-      // Play alert sound for new alerts
+      alertToasts.current.set(alertId, newToast);
+
+      // Play alert sound only when toast is first created
       try {
-        const audio = new Audio('/alert-sound.mp3');
+        const audio = new Audio("/alert-sound.mp3");
         audio.play().catch(() => {
           // Silently fail if audio cannot be played
         });
