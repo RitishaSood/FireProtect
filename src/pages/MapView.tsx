@@ -188,11 +188,17 @@ const MapView = () => {
         travelMode: google.maps.TravelMode.DRIVING,
       });
 
+      // Guard against empty or invalid results to avoid runtime errors
+      if (!result || !result.routes || result.routes.length === 0) {
+        throw new Error("No routes returned from Directions API");
+      }
+
       setDirectionsResponse(result);
 
-      // Extract distance from the result
-      if (result.routes[0]?.legs[0]?.distance) {
-        const distanceKm = result.routes[0].legs[0].distance.value / 1000;
+      // Extract distance from the result safely
+      const firstLeg = result.routes[0]?.legs?.[0];
+      if (firstLeg?.distance) {
+        const distanceKm = firstLeg.distance.value / 1000;
         setDistance(distanceKm);
       }
     } catch (error) {
