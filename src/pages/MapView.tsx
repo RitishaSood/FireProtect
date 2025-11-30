@@ -221,6 +221,8 @@ const MapView = () => {
   };
 
   const getMarkerIcon = (status: string) => {
+    if (!window.google) return undefined;
+    
     const color = status === "alert" ? "#ef4444" : status === "warning" ? "#f59e0b" : "#22c55e";
     return {
       path: google.maps.SymbolPath.CIRCLE,
@@ -302,7 +304,7 @@ const MapView = () => {
                             map?.panTo({ lat: location.latitude, lng: location.longitude });
                             map?.setZoom(14);
                           }}
-                          animation={location.status === "alert" ? google.maps.Animation.BOUNCE : undefined}
+                          animation={location.status === "alert" && window.google ? google.maps.Animation.BOUNCE : undefined}
                         />
                       ))}
 
