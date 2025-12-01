@@ -70,7 +70,20 @@ const Alerts = () => {
       if (error) throw error;
 
       const alerts = (data || []) as Alert[];
-      setLiveAlerts(alerts.filter(a => a.status === "active" || a.status === "in_queue"));
+      
+      // For live alerts: only show ONE alert per unique location (the most recent one)
+      const liveAlertsAll = alerts.filter(a => a.status === "active" || a.status === "in_queue");
+      const uniqueLiveAlerts: Alert[] = [];
+      const seenLocations = new Set<string>();
+      
+      for (const alert of liveAlertsAll) {
+        if (!seenLocations.has(alert.location_id)) {
+          seenLocations.add(alert.location_id);
+          uniqueLiveAlerts.push(alert);
+        }
+      }
+      
+      setLiveAlerts(uniqueLiveAlerts);
       setPastAlerts(alerts.filter(a => a.status === "resolved" || a.status === "false_alarm" || a.status === "unsolved"));
       setSolvedCases(alerts.filter(a => a.status === "resolved"));
       setUnsolvedCases(alerts.filter(a => a.status === "unsolved"));
