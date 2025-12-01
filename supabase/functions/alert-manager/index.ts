@@ -148,6 +148,33 @@ serve(async (req) => {
           );
         }
       } else {
+        // Sensor values within normal range - auto-resolve any existing active alerts
+        const { data: existingAlert } = await supabaseClient
+          .from('alerts')
+          .select('*')
+          .eq('location_id', locationId)
+          .in('status', ['active', 'in_queue'])
+          .order('timestamp', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (existingAlert) {
+          const { error: resolveError } = await supabaseClient
+            .from('alerts')
+            .update({
+              status: 'resolved',
+              resolved_at: new Date().toISOString(),
+              sensor_values: sensors,
+            })
+            .eq('id', existingAlert.id);
+
+          if (resolveError) {
+            console.error('[Alert Manager] Error auto-resolving alert:', resolveError);
+          } else {
+            console.log('[Alert Manager] Alert auto-resolved - values returned to normal:', existingAlert.id);
+          }
+        }
+
         console.log('[Alert Manager] Sensor values within normal range');
         return new Response(
           JSON.stringify({ success: true, message: 'All sensors within normal range', sensors }),
