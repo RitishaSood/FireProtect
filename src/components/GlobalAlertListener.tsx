@@ -64,10 +64,10 @@ export const GlobalAlertListener = () => {
         (t) => (
           <div
             style={{ backgroundColor: '#dc2626' }}
-            className="text-white p-4 rounded-lg shadow-2xl border border-red-800 w-[320px] cursor-pointer"
+            className="text-white p-4 rounded-lg shadow-2xl border border-red-800 w-[350px] cursor-pointer"
             onClick={() => navigate(`/alert/${alert.id}`)}
           >
-            <div className="flex justify-between items-start">
+            <div className="flex justify-between items-start gap-3">
               <div className="space-y-2 flex-1">
                 <h3 className="text-lg font-bold text-white">
                   🔥 FIRE DETECTED!
@@ -81,16 +81,27 @@ export const GlobalAlertListener = () => {
                   <span className="font-semibold">{typeDisplay}</span>
                 </p>
               </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toast.dismiss(t);
-                  shownLocations.current.delete(locationId);
-                }}
-                className="text-red-200 hover:text-white text-xl font-bold ml-2"
-              >
-                ✕
-              </button>
+              <div className="flex flex-col items-end gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toast.dismiss(t);
+                    shownLocations.current.delete(locationId);
+                  }}
+                  className="text-red-200 hover:text-white text-xl font-bold"
+                >
+                  ✕
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/alert/${alert.id}`);
+                  }}
+                  className="bg-white text-red-600 px-3 py-1 rounded text-xs font-bold hover:bg-red-100 transition-colors"
+                >
+                  VIEW DETAILS
+                </button>
+              </div>
             </div>
           </div>
         ),
