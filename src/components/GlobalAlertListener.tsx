@@ -63,20 +63,20 @@ export const GlobalAlertListener = () => {
       toast.custom(
         (t) => (
           <div
-            className="bg-black text-white p-4 rounded-lg shadow-2xl border border-gray-700 min-w-[300px] cursor-pointer"
+            className="bg-red-600 text-white p-4 rounded-lg shadow-2xl border border-red-800 min-w-[300px] cursor-pointer"
             onClick={() => navigate(`/alert/${alert.id}`)}
           >
             <div className="flex justify-between items-start">
               <div className="space-y-2">
-                <h3 className="text-lg font-bold text-red-500">
+                <h3 className="text-lg font-bold text-white">
                   🔥 FIRE DETECTED!
                 </h3>
                 <p className="text-sm">
-                  <span className="text-gray-400">LOCATION:</span>{" "}
+                  <span className="text-red-200">LOCATION:</span>{" "}
                   <span className="font-semibold">{locationName}</span>
                 </p>
                 <p className="text-sm">
-                  <span className="text-gray-400">TYPE:</span>{" "}
+                  <span className="text-red-200">TYPE:</span>{" "}
                   <span className="font-semibold">{typeDisplay}</span>
                 </p>
               </div>
@@ -86,7 +86,7 @@ export const GlobalAlertListener = () => {
                   toast.dismiss(t);
                   shownLocations.current.delete(locationId);
                 }}
-                className="text-gray-400 hover:text-white text-xl font-bold ml-4"
+                className="text-red-200 hover:text-white text-xl font-bold ml-4"
               >
                 ✕
               </button>
