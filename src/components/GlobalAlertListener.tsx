@@ -10,14 +10,13 @@ export const GlobalAlertListener = () => {
   const alertToasts = useRef<Map<string, { dismiss: () => void }>>(new Map());
 
   useEffect(() => {
-    const handleAlert = async (payload: any) => {
-      const alert = payload.new;
+    const showAlertToast = async (alert: any) => {
       if (!alert) return;
 
       const alertId = String(alert.id);
       const status = (alert.status as string | null) ?? "active";
 
-      console.log("GlobalAlertListener received alert:", {
+      console.log("GlobalAlertListener processing alert:", {
         alertId,
         status,
         type: alert.alert_type,
@@ -77,6 +76,7 @@ export const GlobalAlertListener = () => {
         title,
         description,
         variant: "destructive",
+        duration: Infinity,
         action: (
           <button
             onClick={() => navigate(`/alert/${alert.id}`)}
@@ -99,6 +99,28 @@ export const GlobalAlertListener = () => {
         // Ignore audio errors
       }
     };
+
+    const handleAlert = async (payload: any) => {
+      const alert = payload.new;
+      showAlertToast(alert);
+    };
+
+    // Fetch existing active alerts on mount
+    const fetchExistingAlerts = async () => {
+      const { data: alerts } = await supabase
+        .from("alerts")
+        .select("*")
+        .in("status", ["active", "in_queue"])
+        .order("created_at", { ascending: false });
+
+      if (alerts) {
+        for (const alert of alerts) {
+          await showAlertToast(alert);
+        }
+      }
+    };
+
+    fetchExistingAlerts();
 
     const channel = supabase
       .channel("global-alerts")
