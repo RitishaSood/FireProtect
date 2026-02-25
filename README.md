@@ -1,91 +1,17 @@
-# 🔥 FireProtect  
-### Smart IoT-Based Fire Detection & Emergency Alert System  
+# FireProtect
 
----
+FireProtect is a robust fire detection and monitoring system designed to ensure safety and prompt response during fire emergencies. It integrates various sensors and communication technologies for accurate, real-time updates.
 
-## 📌 Overview  
+## Architecture
 
-**FireProtect** is a real-time IoT-powered fire detection and emergency alert platform designed to reduce response delays during fire incidents.
+The system architecture consists of:
+- **Sensors:** smoke, heat, and motion detectors.
+- **Controller:** a central unit that receives sensor data and makes decisions.
+- **Communication Module:** responsible for sending alerts to users and emergency services.
+- **User Interface:** a web and mobile application for monitoring the system.
 
-The system leverages an **ESP32 microcontroller + cloud monitoring + AI-assisted web dashboard** to automatically notify nearby fire stations and provide live location tracking via Google Maps integration.
+## Adding Screenshots and Videos
 
----
-
-## 🚀 Key Features  
-
-- ✅ Real-time fire detection using IoT sensors  
-- ✅ Cloud-based live monitoring (ThingSpeak)  
-- ✅ Instant alert generation on web dashboard  
-- ✅ Google Maps API integration for live location tracking  
-- ✅ Role-based authentication (User & Fire Authority)  
-- ✅ Authority approval workflow before monitoring activation  
-- ✅ Reduced emergency dispatch delay  
-
----
-
-## 🏗️ System Architecture  
-
----
-
-## 🛠️ Tech Stack  
-
-### 🔹 Hardware  
-- ESP32 Microcontroller  
-- Flame / Temperature Sensors  
-- Arduino IDE  
-
-### 🔹 Cloud & APIs  
-- ThingSpeak Cloud  
-- Google Maps API  
-
-### 🔹 Frontend  
-- Vite  
-- React  
-- TypeScript  
-- Tailwind CSS  
-- shadcn-ui  
-- Lovable (AI-assisted UI development)  
-
----
-
-## 🔄 Workflow  
-
-1. Sensors detect abnormal temperature/fire conditions.  
-2. ESP32 sends real-time readings to ThingSpeak Cloud.  
-3. Web dashboard continuously fetches cloud data.  
-4. If threshold exceeds → automatic fire alert triggered.  
-5. Nearby fire station receives notification.  
-6. Location displayed via Google Maps for quick dispatch.  
-7. New users register property → authority approves → monitoring begins.  
-
----
-
-## 📷 Screenshots  
-
-*(Add screenshots in a `/screenshots` folder and update paths below)*  
-
-### 🖥️ Dashboard  
-![Dashboard Screenshot](screenshots/dashboard.png)
-
-### 🚨 Fire Alert Triggered  
-![Alert Screenshot](screenshots/alert.png)
-
-### 📍 Live Location Tracking  
-![Map Screenshot](screenshots/map.png)
-
----
-
-## 💻 Local Development Setup  
-
-```bash
-# Clone the repository
-git clone <YOUR_GIT_URL>
-
-# Navigate into project folder
-cd fireprotect
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
+To enhance the README with visuals, follow these instructions:
+1. **Screenshots:** Take a screenshot and save it in the `screenshots/` directory. Reference it in the README using the syntax `![Screenshot Description](screenshots/screenshot.png)`.
+2. **Videos:** Upload the video to a cloud service (like Vimeo or YouTube) and link to it in the README using `[Video Description](video-link)`.
