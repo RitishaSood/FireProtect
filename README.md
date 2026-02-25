@@ -1,73 +1,91 @@
-# Welcome to your Lovable project
+# 🔥 FireProtect  
+### Smart IoT-Based Fire Detection & Emergency Alert System  
 
-## Project info
+---
 
-**URL**: https://lovable.dev/projects/382d40b8-bb97-4732-ad7b-2cf6b3431ba8
+## 📌 Overview  
 
-## How can I edit this code?
+**FireProtect** is a real-time IoT-powered fire detection and emergency alert platform designed to reduce response delays during fire incidents.
 
-There are several ways of editing your application.
+The system leverages an **ESP32 microcontroller + cloud monitoring + AI-assisted web dashboard** to automatically notify nearby fire stations and provide live location tracking via Google Maps integration.
 
-**Use Lovable**
+---
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/382d40b8-bb97-4732-ad7b-2cf6b3431ba8) and start prompting.
+## 🚀 Key Features  
 
-Changes made via Lovable will be committed automatically to this repo.
+- ✅ Real-time fire detection using IoT sensors  
+- ✅ Cloud-based live monitoring (ThingSpeak)  
+- ✅ Instant alert generation on web dashboard  
+- ✅ Google Maps API integration for live location tracking  
+- ✅ Role-based authentication (User & Fire Authority)  
+- ✅ Authority approval workflow before monitoring activation  
+- ✅ Reduced emergency dispatch delay  
 
-**Use your preferred IDE**
+---
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## 🏗️ System Architecture  
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+---
 
-Follow these steps:
+## 🛠️ Tech Stack  
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
+### 🔹 Hardware  
+- ESP32 Microcontroller  
+- Flame / Temperature Sensors  
+- Arduino IDE  
+
+### 🔹 Cloud & APIs  
+- ThingSpeak Cloud  
+- Google Maps API  
+
+### 🔹 Frontend  
+- Vite  
+- React  
+- TypeScript  
+- Tailwind CSS  
+- shadcn-ui  
+- Lovable (AI-assisted UI development)  
+
+---
+
+## 🔄 Workflow  
+
+1. Sensors detect abnormal temperature/fire conditions.  
+2. ESP32 sends real-time readings to ThingSpeak Cloud.  
+3. Web dashboard continuously fetches cloud data.  
+4. If threshold exceeds → automatic fire alert triggered.  
+5. Nearby fire station receives notification.  
+6. Location displayed via Google Maps for quick dispatch.  
+7. New users register property → authority approves → monitoring begins.  
+
+---
+
+## 📷 Screenshots  
+
+*(Add screenshots in a `/screenshots` folder and update paths below)*  
+
+### 🖥️ Dashboard  
+![Dashboard Screenshot](screenshots/dashboard.png)
+
+### 🚨 Fire Alert Triggered  
+![Alert Screenshot](screenshots/alert.png)
+
+### 📍 Live Location Tracking  
+![Map Screenshot](screenshots/map.png)
+
+---
+
+## 💻 Local Development Setup  
+
+```bash
+# Clone the repository
 git clone <YOUR_GIT_URL>
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Navigate into project folder
+cd fireprotect
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Install dependencies
+npm install
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start development server
 npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/382d40b8-bb97-4732-ad7b-2cf6b3431ba8) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
