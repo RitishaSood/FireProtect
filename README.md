@@ -11,7 +11,4 @@ The system architecture consists of:
 - **User Interface:** a web and mobile application for monitoring the system.
 
 ## Adding Screenshots and Videos
-
-To enhance the README with visuals, follow these instructions:
-1. **Screenshots:** Take a screenshot and save it in the `screenshots/` directory. Reference it in the README using the syntax `![Screenshot Description](screenshots/screenshot.png)`.
-2. **Videos:** Upload the video to a cloud service (like Vimeo or YouTube) and link to it in the README using `[Video Description](video-link)`.
+2. **Videos:**  `[Project Working Demo](https://drive.google.com/file/d/1FJN8rAB-V1j68OHd7NXALvCEcYvr3CaI/view?usp=sharing)`.
