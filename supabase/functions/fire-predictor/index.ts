@@ -1,18 +1,56 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import modelData from "./rf_model.json" with { type: "json" };
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-/**
- * Fire Predictor Edge Function
- * 
- * Accepts sensor data and returns a prediction: true_fire, false_alarm, or no_fire.
- * 
- * Currently uses rule-based logic as a placeholder.
- * Will be replaced with ML model inference when the .pkl model is provided.
- */
+// Class mapping: 0 = true_fire, 1 = false_alarm, 2 = no_fire
+const CLASS_MAP: Record<number, 'true_fire' | 'false_alarm' | 'no_fire'> = {
+  0: 'true_fire',
+  1: 'false_alarm',
+  2: 'no_fire',
+};
+
+interface TreeNode {
+  f?: number;
+  t?: number;
+  l?: TreeNode;
+  r?: TreeNode;
+  leaf?: number[];
+}
+
+function predictTree(node: TreeNode, features: number[]): number[] {
+  if (node.leaf) return node.leaf;
+  if (features[node.f!] <= node.t!) {
+    return predictTree(node.l!, features);
+  }
+  return predictTree(node.r!, features);
+}
+
+function predictForest(features: number[]): { prediction: string; confidence: number; probabilities: number[] } {
+  const nClasses = modelData.n_classes;
+  const votes = new Array(nClasses).fill(0);
+
+  for (const tree of modelData.trees) {
+    const leafVotes = predictTree(tree as TreeNode, features);
+    const total = leafVotes.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < nClasses; i++) {
+      votes[i] += leafVotes[i] / total;
+    }
+  }
+
+  const totalVotes = votes.reduce((a: number, b: number) => a + b, 0);
+  const probabilities = votes.map((v: number) => v / totalVotes);
+  const bestClass = probabilities.indexOf(Math.max(...probabilities));
+  
+  return {
+    prediction: CLASS_MAP[modelData.classes[bestClass]] || 'no_fire',
+    confidence: probabilities[bestClass],
+    probabilities,
+  };
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -24,7 +62,6 @@ serve(async (req) => {
 
     console.log('[Fire Predictor] Input:', { gas, flame, temperature, humidity, pir });
 
-    // Validate input
     if (gas == null || flame == null || temperature == null) {
       return new Response(
         JSON.stringify({ success: false, error: 'Missing required sensor values (gas, flame, temperature)' }),
@@ -32,42 +69,30 @@ serve(async (req) => {
       );
     }
 
-    // --- PLACEHOLDER: Rule-based prediction ---
-    // This will be replaced with actual ML model inference (.pkl) later.
-    
-    let prediction: 'true_fire' | 'false_alarm' | 'no_fire';
-    let confidence: number;
+    // Feature order: gas, flame, temperature, humidity, pir
+    const features = [
+      Number(gas),
+      Number(flame === 'FLAME' ? 1 : flame),
+      Number(temperature),
+      Number(humidity ?? 0),
+      Number(pir ?? 0),
+    ];
 
-    const flameDetected = flame === 1 || flame === '1' || flame === 'FLAME';
-    const highGas = Number(gas) > 1000;
-    const highTemp = Number(temperature) > 40;
+    const result = predictForest(features);
 
-    if (flameDetected && (highGas || highTemp)) {
-      // Strong indicators of real fire
-      prediction = 'true_fire';
-      confidence = 0.92;
-    } else if (flameDetected && !highGas && !highTemp) {
-      // Flame sensor triggered but no supporting evidence
-      prediction = 'false_alarm';
-      confidence = 0.75;
-    } else if (!flameDetected && (highGas || highTemp)) {
-      // No flame but elevated readings - could be pre-fire or environmental
-      prediction = 'false_alarm';
-      confidence = 0.60;
-    } else {
-      // All normal
-      prediction = 'no_fire';
-      confidence = 0.95;
-    }
-
-    console.log('[Fire Predictor] Result:', { prediction, confidence });
+    console.log('[Fire Predictor] Result:', result);
 
     return new Response(
       JSON.stringify({
         success: true,
-        prediction,
-        confidence,
-        model: 'rule_based_v1', // Will change to 'ml_model_v1' when pkl is integrated
+        prediction: result.prediction,
+        confidence: Math.round(result.confidence * 100) / 100,
+        probabilities: {
+          true_fire: Math.round(result.probabilities[0] * 100) / 100,
+          false_alarm: Math.round(result.probabilities[1] * 100) / 100,
+          no_fire: Math.round(result.probabilities[2] * 100) / 100,
+        },
+        model: 'random_forest_v1',
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
