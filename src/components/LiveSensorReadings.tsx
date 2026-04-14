@@ -69,7 +69,11 @@ export const LiveSensorReadings = () => {
   // Run prediction whenever sensor data changes
   useEffect(() => {
     if (displayData) {
+      setHasLiveData(true);
       runPrediction(displayData);
+    } else {
+      setHasLiveData(false);
+      setPrediction("no_fire");
     }
   }, [mqttData, thingspeakData]);
 

@@ -46,6 +46,7 @@ const LocationsStatus = () => {
   useEffect(() => {
     if (mqttData && locations.length > 0) {
       const firstLocation = locations[0];
+      setHasLiveData(prev => ({ ...prev, [firstLocation.id]: true }));
       setSensorData(prev => ({
         ...prev,
         [firstLocation.id]: {
@@ -57,7 +58,6 @@ const LocationsStatus = () => {
           created_at: new Date().toISOString(),
         }
       }));
-      // Run prediction
       runPrediction(firstLocation.id, {
         gas: mqttData.gas,
         flame: mqttData.flame,
