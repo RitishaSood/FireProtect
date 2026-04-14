@@ -114,7 +114,7 @@ const LocationsStatus = () => {
           created_at: data.data.timestamp,
         };
         setSensorData(prev => ({ ...prev, [locationId]: sData }));
-        // Run prediction
+        setHasLiveData(prev => ({ ...prev, [locationId]: true }));
         runPrediction(locationId, {
           gas: data.data.gas, flame: data.data.flame, temperature: data.data.temperature,
           humidity: data.data.humidity, pir: data.data.pir,
@@ -180,7 +180,7 @@ const LocationsStatus = () => {
       <div className="grid gap-6">
         {locations.map(location => {
           const data = sensorData[location.id];
-          const pred = predictions[location.id];
+          const pred = hasLiveData[location.id] ? predictions[location.id] : "no_fire";
           const isPredicting = predictingIds.has(location.id);
 
           return (
