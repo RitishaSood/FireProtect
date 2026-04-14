@@ -32,6 +32,7 @@ const LocationsStatus = () => {
   const [sensorData, setSensorData] = useState<{ [key: string]: SensorData }>({});
   const [loading, setLoading] = useState(false);
   const [predictions, setPredictions] = useState<{ [key: string]: PredictionResult }>({});
+  const [hasLiveData, setHasLiveData] = useState<{ [key: string]: boolean }>({});
   const [predictingIds, setPredictingIds] = useState<Set<string>>(new Set());
 
   // MQTT for real-time updates
@@ -45,6 +46,7 @@ const LocationsStatus = () => {
   useEffect(() => {
     if (mqttData && locations.length > 0) {
       const firstLocation = locations[0];
+      setHasLiveData(prev => ({ ...prev, [firstLocation.id]: true }));
       setSensorData(prev => ({
         ...prev,
         [firstLocation.id]: {
@@ -56,7 +58,6 @@ const LocationsStatus = () => {
           created_at: new Date().toISOString(),
         }
       }));
-      // Run prediction
       runPrediction(firstLocation.id, {
         gas: mqttData.gas,
         flame: mqttData.flame,
@@ -113,7 +114,7 @@ const LocationsStatus = () => {
           created_at: data.data.timestamp,
         };
         setSensorData(prev => ({ ...prev, [locationId]: sData }));
-        // Run prediction
+        setHasLiveData(prev => ({ ...prev, [locationId]: true }));
         runPrediction(locationId, {
           gas: data.data.gas, flame: data.data.flame, temperature: data.data.temperature,
           humidity: data.data.humidity, pir: data.data.pir,
@@ -179,7 +180,7 @@ const LocationsStatus = () => {
       <div className="grid gap-6">
         {locations.map(location => {
           const data = sensorData[location.id];
-          const pred = predictions[location.id];
+          const pred = hasLiveData[location.id] ? predictions[location.id] : "no_fire";
           const isPredicting = predictingIds.has(location.id);
 
           return (

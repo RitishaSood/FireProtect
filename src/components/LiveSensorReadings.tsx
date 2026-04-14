@@ -22,8 +22,9 @@ export const LiveSensorReadings = () => {
   const { toast } = useToast();
   const [location, setLocation] = useState<Location | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [prediction, setPrediction] = useState<PredictionResult>(null);
+  const [prediction, setPrediction] = useState<PredictionResult>("no_fire");
   const [isPredicting, setIsPredicting] = useState(false);
+  const [hasLiveData, setHasLiveData] = useState(false);
 
   // MQTT hook for real-time data
   const { sensorData: mqttData, connectionStatus, lastUpdated: mqttLastUpdated } = useMqtt();
@@ -68,7 +69,11 @@ export const LiveSensorReadings = () => {
   // Run prediction whenever sensor data changes
   useEffect(() => {
     if (displayData) {
+      setHasLiveData(true);
       runPrediction(displayData);
+    } else {
+      setHasLiveData(false);
+      setPrediction("no_fire");
     }
   }, [mqttData, thingspeakData]);
 
