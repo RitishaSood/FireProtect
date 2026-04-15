@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Class mapping: 0 = true_fire, 1 = false_alarm, 2 = no_fire
+// Class mapping: 0 = actual_fire, 1 = false_alarm, 2 = no_fire
 const CLASS_MAP: Record<number, 'true_fire' | 'false_alarm' | 'no_fire'> = {
   0: 'true_fire',
   1: 'false_alarm',
@@ -21,6 +21,14 @@ interface TreeNode {
   leaf?: number[];
 }
 
+// StandardScaler: z = (x - mean) / std
+const SCALER_MEAN = (modelData as any).scaler?.mean ?? [1000, 60, 33, 0.5, 0.5];
+const SCALER_STD = (modelData as any).scaler?.std ?? [700, 15, 8, 0.5, 0.5];
+
+function scaleFeatures(features: number[]): number[] {
+  return features.map((val, i) => (val - SCALER_MEAN[i]) / SCALER_STD[i]);
+}
+
 function predictTree(node: TreeNode, features: number[]): number[] {
   if (node.leaf) return node.leaf;
   if (features[node.f!] <= node.t!) {
@@ -29,7 +37,10 @@ function predictTree(node: TreeNode, features: number[]): number[] {
   return predictTree(node.r!, features);
 }
 
-function predictForest(features: number[]): { prediction: string; confidence: number; probabilities: number[] } {
+function predictForest(rawFeatures: number[]): { prediction: string; confidence: number; probabilities: number[] } {
+  // Apply StandardScaler before prediction
+  const features = scaleFeatures(rawFeatures);
+  
   const nClasses = modelData.n_classes;
   const votes = new Array(nClasses).fill(0);
 
@@ -75,11 +86,12 @@ serve(async (req) => {
       Number(humidity ?? 0),
       Number(temperature),
       Number(pir ?? 0),
-      Number(flame === 'FLAME' ? 1 : flame),
+      Number(flame === 'FLAME' || flame === 1 || flame === '1' ? 1 : 0),
     ];
 
     const result = predictForest(features);
 
+    console.log('[Fire Predictor] Scaled features:', scaleFeatures(features));
     console.log('[Fire Predictor] Result:', result);
 
     return new Response(
