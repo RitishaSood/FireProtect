@@ -69,13 +69,13 @@ serve(async (req) => {
       );
     }
 
-    // Feature order: gas, flame, temperature, humidity, pir
+    // Feature order must match training data: GAS, HUMIDITY, TEMPERATURE, PIR, FLAME
     const features = [
       Number(gas),
-      Number(flame === 'FLAME' ? 1 : flame),
-      Number(temperature),
       Number(humidity ?? 0),
+      Number(temperature),
       Number(pir ?? 0),
+      Number(flame === 'FLAME' ? 1 : flame),
     ];
 
     const result = predictForest(features);
