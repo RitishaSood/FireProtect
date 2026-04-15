@@ -135,6 +135,7 @@ const LocationsStatus = () => {
         };
         setSensorData(prev => ({ ...prev, [locationId]: sData }));
         setHasLiveData(prev => ({ ...prev, [locationId]: true }));
+        setLastDataTime(prev => ({ ...prev, [locationId]: new Date() }));
         runPrediction(locationId, {
           gas: data.data.gas, flame: data.data.flame, temperature: data.data.temperature,
           humidity: data.data.humidity, pir: data.data.pir,
