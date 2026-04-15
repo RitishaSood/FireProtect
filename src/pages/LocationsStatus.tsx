@@ -48,6 +48,7 @@ const LocationsStatus = () => {
     if (mqttData && locations.length > 0) {
       const firstLocation = locations[0];
       setHasLiveData(prev => ({ ...prev, [firstLocation.id]: true }));
+      setLastDataTime(prev => ({ ...prev, [firstLocation.id]: new Date() }));
       setSensorData(prev => ({
         ...prev,
         [firstLocation.id]: {
@@ -68,6 +69,24 @@ const LocationsStatus = () => {
       });
     }
   }, [mqttData]);
+
+  // Check data freshness every 5 seconds - if data older than 30s, show NO FIRE
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setHasLiveData(prev => {
+        const updated = { ...prev };
+        for (const locId of Object.keys(updated)) {
+          const lastTime = lastDataTime[locId];
+          if (!lastTime || (now - lastTime.getTime()) > 30000) {
+            updated[locId] = false;
+          }
+        }
+        return updated;
+      });
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [lastDataTime]);
 
   // Fallback: poll ThingSpeak when MQTT is disconnected
   useEffect(() => {
