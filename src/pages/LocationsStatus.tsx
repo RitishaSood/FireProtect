@@ -34,6 +34,7 @@ const LocationsStatus = () => {
   const [predictions, setPredictions] = useState<{ [key: string]: PredictionResult }>({});
   const [hasLiveData, setHasLiveData] = useState<{ [key: string]: boolean }>({});
   const [predictingIds, setPredictingIds] = useState<Set<string>>(new Set());
+  const [lastDataTime, setLastDataTime] = useState<{ [key: string]: Date }>({});
 
   // MQTT for real-time updates
   const { sensorData: mqttData, connectionStatus, lastUpdated: mqttLastUpdated } = useMqtt();
