@@ -36,6 +36,9 @@ const LocationsStatus = () => {
   const [predictingIds, setPredictingIds] = useState<Set<string>>(new Set());
   const [lastDataTime, setLastDataTime] = useState<{ [key: string]: Date }>({});
 
+  // Max concurrent ThingSpeak fetches to avoid overloading the network/edge
+  const FETCH_CONCURRENCY = 3;
+
   // MQTT for real-time updates
   const { sensorData: mqttData, connectionStatus, lastUpdated: mqttLastUpdated } = useMqtt();
 
@@ -116,14 +119,28 @@ const LocationsStatus = () => {
       const { data, error } = await supabase.from("locations").select("*").order("name");
       if (error) throw error;
       setLocations(data || []);
-      data?.forEach(location => {
-        if (location.thingspeak_channel_id && location.thingspeak_read_key) {
-          fetchSensorData(location.id, location.name, location.thingspeak_channel_id, location.thingspeak_read_key);
-        }
-      });
+      await fetchInBatches(data || []);
     } catch (error) {
       toast({ title: "Error fetching locations", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
     }
+  };
+
+  // Run sensor fetches with a bounded concurrency limit
+  const fetchInBatches = async (locs: Location[]) => {
+    const eligible = locs.filter(l => l.thingspeak_channel_id && l.thingspeak_read_key);
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < eligible.length) {
+        const idx = cursor++;
+        const loc = eligible[idx];
+        await fetchSensorData(loc.id, loc.name, loc.thingspeak_channel_id!, loc.thingspeak_read_key!);
+      }
+    };
+    const workers = Array.from(
+      { length: Math.min(FETCH_CONCURRENCY, eligible.length) },
+      () => worker()
+    );
+    await Promise.all(workers);
   };
 
   const fetchSensorData = async (locationId: string, name: string, channelId: string, readKey: string) => {
@@ -185,11 +202,7 @@ const LocationsStatus = () => {
   };
 
   const refreshAll = () => {
-    locations.forEach(location => {
-      if (location.thingspeak_channel_id && location.thingspeak_read_key) {
-        fetchSensorData(location.id, location.name, location.thingspeak_channel_id, location.thingspeak_read_key);
-      }
-    });
+    fetchInBatches(locations);
   };
 
   return (
