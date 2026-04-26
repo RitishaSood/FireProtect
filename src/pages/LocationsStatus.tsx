@@ -43,6 +43,15 @@ const LocationsStatus = () => {
     fetchLocations();
   }, []);
 
+  // Self-refresh every 15 seconds
+  useEffect(() => {
+    if (locations.length === 0) return;
+    const interval = setInterval(() => {
+      refreshAll();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [locations]);
+
   // When MQTT data arrives, update the first location's sensor data
   useEffect(() => {
     if (mqttData && locations.length > 0) {
