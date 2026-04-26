@@ -129,28 +129,29 @@ const LocationsStatus = () => {
   const fetchSensorData = async (locationId: string, name: string, channelId: string, readKey: string) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('thingspeak-service', {
-        body: { action: 'latest', location: { name, thingspeak_channel_id: channelId, thingspeak_read_key: readKey } }
-      });
-      if (error) throw error;
-      if (data.success && data.data) {
-        const sData = {
-          field1: data.data.temperature || 0,
-          field2: data.data.humidity || 0,
-          field3: data.data.flame || 0,
-          field4: data.data.gas || 0,
-          field5: data.data.pir || 0,
-          created_at: data.data.timestamp,
-        };
-        setSensorData(prev => ({ ...prev, [locationId]: sData }));
-        setHasLiveData(prev => ({ ...prev, [locationId]: true }));
-        setLastDataTime(prev => ({ ...prev, [locationId]: new Date() }));
-        runPrediction(locationId, {
-          gas: data.data.gas, flame: data.data.flame, temperature: data.data.temperature,
-          humidity: data.data.humidity, pir: data.data.pir,
-        });
-        evaluateAlerts(locationId);
-      }
+      // Call ThingSpeak directly from browser to avoid overloading the edge function
+      const url = `https://api.thingspeak.com/channels/${channelId}/feeds/last.json?api_key=${readKey}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`ThingSpeak ${res.status}`);
+      const raw = await res.json();
+      const temperature = parseFloat(raw.field1);
+      const humidity = parseFloat(raw.field2);
+      const flame = raw.field3 == "0" ? "FLAME" : "NONE";
+      const gas = parseFloat(raw.field4);
+      const pir = raw.field5;
+      const sData = {
+        field1: temperature || 0,
+        field2: humidity || 0,
+        field3: flame,
+        field4: gas || 0,
+        field5: pir ?? "0",
+        created_at: raw.created_at,
+      };
+      setSensorData(prev => ({ ...prev, [locationId]: sData }));
+      setHasLiveData(prev => ({ ...prev, [locationId]: true }));
+      setLastDataTime(prev => ({ ...prev, [locationId]: new Date() }));
+      runPrediction(locationId, { gas, flame, temperature, humidity, pir });
+      evaluateAlerts(locationId);
     } catch (error) {
       console.error(`Error fetching sensor data for ${locationId}:`, error);
     } finally {
