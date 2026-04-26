@@ -10,11 +10,11 @@ import { useToast } from "@/hooks/use-toast";
 import { RefreshCw, Thermometer, Droplets, Flame, Wind, Eye } from "lucide-react";
 
 interface SensorData {
-  field1: number;
-  field2: number;
-  field3: string;
-  field4: number;
-  field5: string;
+  field1: string;       // temperature (raw)
+  field2: string;       // humidity (raw)
+  field3: string;       // flame (raw)
+  field4: string;       // gas (raw)
+  field5: string;       // pir (raw)
   created_at: string;
 }
 
@@ -64,10 +64,10 @@ const LocationsStatus = () => {
       setSensorData(prev => ({
         ...prev,
         [firstLocation.id]: {
-          field1: mqttData.temperature,
-          field2: mqttData.humidity ?? 0,
-          field3: mqttData.flame === 1 || mqttData.flame === "1" ? "FLAME" : "NO FLAME",
-          field4: mqttData.gas,
+          field1: String(mqttData.temperature),
+          field2: String(mqttData.humidity ?? ""),
+          field3: String(mqttData.flame),
+          field4: String(mqttData.gas),
           field5: String(mqttData.pir),
           created_at: new Date().toISOString(),
         }
@@ -151,19 +151,21 @@ const LocationsStatus = () => {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`ThingSpeak ${res.status}`);
       const raw = await res.json();
-      const temperature = parseFloat(raw.field1);
-      const humidity = parseFloat(raw.field2);
-      const flame = raw.field3 == "0" ? "FLAME" : "NONE";
-      const gas = parseFloat(raw.field4);
-      const pir = raw.field5;
-      const sData = {
-        field1: temperature || 0,
-        field2: humidity || 0,
-        field3: flame,
-        field4: gas || 0,
-        field5: pir ?? "0",
+      // Keep raw sensor values exactly as reported by ThingSpeak (no tampering)
+      const sData: SensorData = {
+        field1: raw.field1 ?? "",
+        field2: raw.field2 ?? "",
+        field3: raw.field3 ?? "",
+        field4: raw.field4 ?? "",
+        field5: raw.field5 ?? "",
         created_at: raw.created_at,
       };
+      // Numeric copies for the model (does not affect UI display)
+      const temperature = parseFloat(raw.field1);
+      const humidity = parseFloat(raw.field2);
+      const gas = parseFloat(raw.field4);
+      const flame = raw.field3;
+      const pir = raw.field5;
       setSensorData(prev => ({ ...prev, [locationId]: sData }));
       setHasLiveData(prev => ({ ...prev, [locationId]: true }));
       setLastDataTime(prev => ({ ...prev, [locationId]: new Date() }));
@@ -226,6 +228,10 @@ const LocationsStatus = () => {
           const data = sensorData[location.id];
           const pred = hasLiveData[location.id] ? predictions[location.id] : "no_fire";
           const isPredicting = predictingIds.has(location.id);
+          const isTrueFire = pred === "true_fire";
+          // Override flame display ONLY when prediction is true_fire
+          const flameDisplay = isTrueFire ? "FLAME" : (data?.field3 ?? "");
+          const showFlameDetected = isTrueFire || flameDisplay === "FLAME" || flameDisplay === "1";
 
           return (
             <Card key={location.id}>
@@ -262,17 +268,17 @@ const LocationsStatus = () => {
                         <p className="text-2xl font-bold">{data.field2}%</p>
                       </CardContent>
                     </Card>
-                    <Card className={`border-primary/20 ${data.field3 === "FLAME" ? "bg-red-100 border-red-500" : ""}`}>
+                    <Card className={`border-primary/20 ${showFlameDetected ? "bg-red-100 border-red-500" : ""}`}>
                       <CardContent className="pt-6">
                         <div className="flex items-center gap-2 mb-2">
-                          <Flame className={`h-5 w-5 ${data.field3 === "FLAME" ? "text-red-600" : "text-destructive"}`} />
+                          <Flame className={`h-5 w-5 ${showFlameDetected ? "text-red-600" : "text-destructive"}`} />
                           <span className="font-medium">Flame</span>
-                          {data.field3 === "FLAME" && (
+                          {showFlameDetected && (
                             <Badge variant="destructive" className="ml-auto animate-pulse">🚨 Flame Detected</Badge>
                           )}
                         </div>
-                        <p className={`text-2xl font-bold ${data.field3 === "FLAME" ? "text-red-700" : ""}`}>
-                          {data.field3 === "FLAME" ? "Detected" : "None"}
+                        <p className={`text-2xl font-bold ${showFlameDetected ? "text-red-700" : ""}`}>
+                          {showFlameDetected ? "Detected" : (data.field3 || "—")}
                         </p>
                       </CardContent>
                     </Card>
