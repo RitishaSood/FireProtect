@@ -94,35 +94,6 @@ serve(async (req) => {
     console.log('[Fire Predictor] Scaled features:', scaleFeatures(features));
     console.log('[Fire Predictor] Result:', result);
 
-    // Deterministic override: true_fire requires flame detection.
-    // The ML model under-weights the flame feature, so we enforce a hard rule:
-    //  - If flame is detected → escalate to true_fire (high confidence)
-    //  - If flame is NOT detected but model says true_fire → downgrade based on other sensors
-    const flameDetected = features[4] === 1;
-    const gasVal = Number(gas);
-    const tempVal = Number(temperature);
-
-    if (flameDetected) {
-      // Flame present → it's a true fire
-      result.prediction = 'true_fire';
-      result.confidence = Math.max(result.confidence, 0.95);
-      result.probabilities = [0.95, 0.03, 0.02];
-    } else if (result.prediction === 'true_fire') {
-      // Model said fire but no flame → downgrade
-      // High gas + high temp without flame = false alarm; otherwise no fire
-      if (gasVal > 1000 && tempVal > 40) {
-        result.prediction = 'false_alarm';
-        result.probabilities = [0.10, 0.85, 0.05];
-        result.confidence = 0.85;
-      } else {
-        result.prediction = 'no_fire';
-        result.probabilities = [0.05, 0.10, 0.85];
-        result.confidence = 0.85;
-      }
-    }
-
-    console.log('[Fire Predictor] Final (post-rule):', result.prediction, 'flameDetected:', flameDetected);
-
     return new Response(
       JSON.stringify({
         success: true,
