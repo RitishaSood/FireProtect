@@ -58,31 +58,36 @@ serve(async (req) => {
 
       const sensors = sensorData.data;
       
-      // Define thresholds for alerts
-      const thresholds = {
-        temperature: { critical: 40 },
-        gas: { critical: 1000 },
-        flame: { detected: 'FLAME' },
-        pir: { detected: '0' } // 0 = motion detected, 1 = no motion
-      };
-
-      let alertType = null;
+      // Use ML model (fire-predictor) to determine fire status.
+      // Only create a live alert when the prediction is "true_fire".
+      // false_alarm and no_fire should NOT create live alerts.
+      let alertType: string | null = null;
       let severity = 'critical';
-      
-      // Check for fire (flame detected when value is "FLAME")
-      if (sensors.flame === 'FLAME') {
-        alertType = 'fire';
-        severity = 'critical';
-      }
-      // Check for gas leak
-      else if (sensors.gas > thresholds.gas.critical) {
-        alertType = 'gas_leak';
-        severity = 'critical';
-      }
-      // Check for high temperature
-      else if (sensors.temperature > thresholds.temperature.critical) {
-        alertType = 'temperature';
-        severity = 'critical';
+
+      try {
+        const { data: predData, error: predError } = await supabaseClient.functions.invoke(
+          'fire-predictor',
+          {
+            body: {
+              gas: sensors.gas,
+              flame: sensors.flame,
+              temperature: sensors.temperature,
+              humidity: sensors.humidity,
+              pir: sensors.pir,
+            },
+          }
+        );
+
+        console.log('[Alert Manager] Prediction result:', predData);
+
+        if (!predError && predData?.success && predData?.prediction === 'true_fire') {
+          alertType = 'fire';
+          severity = 'critical';
+        } else {
+          console.log('[Alert Manager] No live alert - prediction is:', predData?.prediction);
+        }
+      } catch (e) {
+        console.error('[Alert Manager] Prediction call failed:', e);
       }
 
       // Create or update alert if threshold exceeded
