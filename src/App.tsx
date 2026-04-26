@@ -20,6 +20,7 @@ import Locations from "./pages/Locations";
 import LocationDetails from "./pages/LocationDetails";
 import AlertDetails from "./pages/AlertDetails";
 import MapView from "./pages/MapView";
+import MqttStatus from "./pages/MqttStatus";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -62,6 +63,7 @@ const App = () => (
           <Route path="/location/:id" element={<AppLayout><LocationDetails /></AppLayout>} />
           <Route path="/alert/:id" element={<AppLayout><AlertDetails /></AppLayout>} />
           <Route path="/map" element={<AppLayout><MapView /></AppLayout>} />
+          <Route path="/mqtt-status" element={<AppLayout><MqttStatus /></AppLayout>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
