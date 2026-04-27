@@ -73,10 +73,13 @@ const LocationsStatus = () => {
         }
       }));
       const flameDetected = mqttData.flame === 1 || mqttData.flame === "1" || mqttData.flame === "FLAME";
-      applyRulePrediction(firstLocation.id, {
+      runMlPrediction(firstLocation.id, {
         gas: Number(mqttData.gas) || 0,
+        humidity: Number(mqttData.humidity) || 0,
         temperature: Number(mqttData.temperature) || 0,
-        flameDetected,
+        pir: Number(mqttData.pir) || 0,
+        flame: flameDetected ? "FLAME" : "NONE",
+        isFresh: true,
       });
     }
   }, [mqttData]);
@@ -180,10 +183,12 @@ const LocationsStatus = () => {
       const isFresh = (Date.now() - readingTime.getTime()) <= 30000;
       setHasLiveData(prev => ({ ...prev, [locationId]: isFresh }));
       setLastDataTime(prev => ({ ...prev, [locationId]: readingTime }));
-      applyRulePrediction(locationId, {
+      runMlPrediction(locationId, {
         gas: gas || 0,
+        humidity: humidity || 0,
         temperature: temperature || 0,
-        flameDetected: flame === "FLAME",
+        pir: Number(pir) || 0,
+        flame,
         isFresh,
       });
       evaluateAlerts(locationId);
@@ -195,25 +200,37 @@ const LocationsStatus = () => {
   };
 
   /**
-   * Deterministic fire-status rules (override ML model to match field thresholds):
-   *  - true_fire   : flame detected AND gas < 2000 AND 40 ≤ temp ≤ 60 AND data fresh (≤30s old)
-   *  - false_alarm : flame detected but thresholds not met (and data fresh)
-   *  - no_fire     : no flame OR data older than 30s
+   * Calls the `fire-predictor` edge function (ML + threshold gate) and
+   * stores the resulting prediction. Stale data (>30s) is forced to
+   * "no_fire" without invoking the model.
    */
-  const applyRulePrediction = (
+  const runMlPrediction = async (
     locationId: string,
-    { gas, temperature, flameDetected, isFresh = true }:
-      { gas: number; temperature: number; flameDetected: boolean; isFresh?: boolean }
+    { gas, humidity, temperature, pir, flame, isFresh }:
+      { gas: number; humidity: number; temperature: number; pir: number; flame: string; isFresh: boolean }
   ) => {
-    let result: PredictionResult = "no_fire";
-    if (!isFresh || !flameDetected) {
-      result = "no_fire";
-    } else if (gas < 2000 && temperature >= 40 && temperature <= 60) {
-      result = "true_fire";
-    } else {
-      result = "false_alarm";
+    if (!isFresh) {
+      setPredictions(prev => ({ ...prev, [locationId]: "no_fire" }));
+      return;
     }
-    setPredictions(prev => ({ ...prev, [locationId]: result }));
+    setPredictingIds(prev => new Set(prev).add(locationId));
+    try {
+      const { data, error } = await supabase.functions.invoke("fire-predictor", {
+        body: { gas, flame, temperature, humidity, pir },
+      });
+      if (error) throw error;
+      if (data?.success && data?.prediction) {
+        setPredictions(prev => ({ ...prev, [locationId]: data.prediction as PredictionResult }));
+      }
+    } catch (err) {
+      console.error("[runMlPrediction] error:", err);
+    } finally {
+      setPredictingIds(prev => {
+        const next = new Set(prev);
+        next.delete(locationId);
+        return next;
+      });
+    }
   };
 
   const evaluateAlerts = async (locationId: string) => {
