@@ -46,12 +46,12 @@ const LocationsStatus = () => {
     fetchLocations();
   }, []);
 
-  // Self-refresh every 15 seconds
+  // Self-refresh every 10 seconds
   useEffect(() => {
     if (locations.length === 0) return;
     const interval = setInterval(() => {
       refreshAll();
-    }, 15000);
+    }, 10000);
     return () => clearInterval(interval);
   }, [locations]);
 
@@ -72,17 +72,16 @@ const LocationsStatus = () => {
           created_at: new Date().toISOString(),
         }
       }));
-      runPrediction(firstLocation.id, {
-        gas: mqttData.gas,
-        flame: mqttData.flame,
-        temperature: mqttData.temperature,
-        humidity: mqttData.humidity,
-        pir: mqttData.pir,
+      const flameDetected = mqttData.flame === 1 || mqttData.flame === "1" || mqttData.flame === "FLAME";
+      applyRulePrediction(firstLocation.id, {
+        gas: Number(mqttData.gas) || 0,
+        temperature: Number(mqttData.temperature) || 0,
+        flameDetected,
       });
     }
   }, [mqttData]);
 
-  // Check data freshness every 5 seconds - if data older than 30s, show NO FIRE
+  // Check data freshness every 5 seconds - if data older than 30s, force NO FIRE
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
@@ -92,6 +91,17 @@ const LocationsStatus = () => {
           const lastTime = lastDataTime[locId];
           if (!lastTime || (now - lastTime.getTime()) > 30000) {
             updated[locId] = false;
+          }
+        }
+        return updated;
+      });
+      // Stale data → no_fire
+      setPredictions(prev => {
+        const updated = { ...prev };
+        for (const locId of Object.keys(updated)) {
+          const lastTime = lastDataTime[locId];
+          if (!lastTime || (now - lastTime.getTime()) > 30000) {
+            updated[locId] = "no_fire";
           }
         }
         return updated;
@@ -165,9 +175,17 @@ const LocationsStatus = () => {
         created_at: raw.created_at,
       };
       setSensorData(prev => ({ ...prev, [locationId]: sData }));
-      setHasLiveData(prev => ({ ...prev, [locationId]: true }));
-      setLastDataTime(prev => ({ ...prev, [locationId]: new Date() }));
-      runPrediction(locationId, { gas, flame, temperature, humidity, pir });
+      // Use ThingSpeak's reading timestamp to enforce the 30s freshness rule
+      const readingTime = raw.created_at ? new Date(raw.created_at) : new Date();
+      const isFresh = (Date.now() - readingTime.getTime()) <= 30000;
+      setHasLiveData(prev => ({ ...prev, [locationId]: isFresh }));
+      setLastDataTime(prev => ({ ...prev, [locationId]: readingTime }));
+      applyRulePrediction(locationId, {
+        gas: gas || 0,
+        temperature: temperature || 0,
+        flameDetected: flame === "FLAME",
+        isFresh,
+      });
       evaluateAlerts(locationId);
     } catch (error) {
       console.error(`Error fetching sensor data for ${locationId}:`, error);
@@ -176,21 +194,26 @@ const LocationsStatus = () => {
     }
   };
 
-  const runPrediction = async (locationId: string, sensors: any) => {
-    setPredictingIds(prev => new Set(prev).add(locationId));
-    try {
-      const { data, error } = await supabase.functions.invoke("fire-predictor", {
-        body: sensors,
-      });
-      if (error) throw error;
-      if (data?.success) {
-        setPredictions(prev => ({ ...prev, [locationId]: data.prediction }));
-      }
-    } catch (error) {
-      console.error("Prediction error:", error);
-    } finally {
-      setPredictingIds(prev => { const s = new Set(prev); s.delete(locationId); return s; });
+  /**
+   * Deterministic fire-status rules (override ML model to match field thresholds):
+   *  - true_fire   : flame detected AND gas < 2000 AND 40 ≤ temp ≤ 60 AND data fresh (≤30s old)
+   *  - false_alarm : flame detected but thresholds not met (and data fresh)
+   *  - no_fire     : no flame OR data older than 30s
+   */
+  const applyRulePrediction = (
+    locationId: string,
+    { gas, temperature, flameDetected, isFresh = true }:
+      { gas: number; temperature: number; flameDetected: boolean; isFresh?: boolean }
+  ) => {
+    let result: PredictionResult = "no_fire";
+    if (!isFresh || !flameDetected) {
+      result = "no_fire";
+    } else if (gas < 2000 && temperature >= 40 && temperature <= 60) {
+      result = "true_fire";
+    } else {
+      result = "false_alarm";
     }
+    setPredictions(prev => ({ ...prev, [locationId]: result }));
   };
 
   const evaluateAlerts = async (locationId: string) => {
