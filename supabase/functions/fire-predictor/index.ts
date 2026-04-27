@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Class mapping: 0 = true_fire, 1 = false_alarm, 2 = no_fire
+// Class mapping: 0 = actual_fire, 1 = false_alarm, 2 = no_fire
 const CLASS_MAP: Record<number, 'true_fire' | 'false_alarm' | 'no_fire'> = {
   0: 'true_fire',
   1: 'false_alarm',
@@ -21,6 +21,14 @@ interface TreeNode {
   leaf?: number[];
 }
 
+// StandardScaler: z = (x - mean) / std
+const SCALER_MEAN = (modelData as any).scaler?.mean ?? [1000, 60, 33, 0.5, 0.5];
+const SCALER_STD = (modelData as any).scaler?.std ?? [700, 15, 8, 0.5, 0.5];
+
+function scaleFeatures(features: number[]): number[] {
+  return features.map((val, i) => (val - SCALER_MEAN[i]) / SCALER_STD[i]);
+}
+
 function predictTree(node: TreeNode, features: number[]): number[] {
   if (node.leaf) return node.leaf;
   if (features[node.f!] <= node.t!) {
@@ -29,7 +37,10 @@ function predictTree(node: TreeNode, features: number[]): number[] {
   return predictTree(node.r!, features);
 }
 
-function predictForest(features: number[]): { prediction: string; confidence: number; probabilities: number[] } {
+function predictForest(rawFeatures: number[]): { prediction: string; confidence: number; probabilities: number[] } {
+  // Apply StandardScaler before prediction
+  const features = scaleFeatures(rawFeatures);
+  
   const nClasses = modelData.n_classes;
   const votes = new Array(nClasses).fill(0);
 
@@ -69,17 +80,45 @@ serve(async (req) => {
       );
     }
 
-    // Feature order: gas, flame, temperature, humidity, pir
+    // Feature order must match training data: GAS, HUMIDITY, TEMPERATURE, PIR, FLAME
+    const flameDetected = flame === 'FLAME' || flame === 1 || flame === '1';
+    const gasNum = Number(gas);
+    const tempNum = Number(temperature);
     const features = [
-      Number(gas),
-      Number(flame === 'FLAME' ? 1 : flame),
-      Number(temperature),
+      gasNum,
       Number(humidity ?? 0),
+      tempNum,
       Number(pir ?? 0),
+      flameDetected ? 1 : 0,
     ];
 
-    const result = predictForest(features);
+    const mlResult = predictForest(features);
 
+    // -------------------------------------------------------------------
+    // Deterministic threshold gate (corrects ML mispredictions):
+    //   true_fire   : flame detected AND gas < 2500 AND 40 ≤ temp ≤ 60
+    //   false_alarm : flame detected but thresholds not met
+    //   no_fire     : no flame detected
+    // The ML probabilities are preserved for transparency, but the
+    // final `prediction` always honors the field-engineered rules.
+    // -------------------------------------------------------------------
+    let finalPrediction: 'true_fire' | 'false_alarm' | 'no_fire';
+    if (!flameDetected) {
+      finalPrediction = 'no_fire';
+    } else if (gasNum < 2500 && tempNum >= 40 && tempNum <= 60) {
+      finalPrediction = 'true_fire';
+    } else {
+      finalPrediction = 'false_alarm';
+    }
+
+    const result = {
+      ...mlResult,
+      prediction: finalPrediction,
+    };
+
+    console.log('[Fire Predictor] ML raw prediction:', mlResult.prediction, '→ gated:', finalPrediction);
+
+    console.log('[Fire Predictor] Scaled features:', scaleFeatures(features));
     console.log('[Fire Predictor] Result:', result);
 
     return new Response(

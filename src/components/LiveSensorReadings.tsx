@@ -66,7 +66,7 @@ export const LiveSensorReadings = () => {
     }
   }, [connectionStatus, location]);
 
-  // Run prediction whenever sensor data changes
+  // Run prediction whenever sensor data changes, with 30-second freshness check
   useEffect(() => {
     if (displayData) {
       setHasLiveData(true);
@@ -76,6 +76,18 @@ export const LiveSensorReadings = () => {
       setPrediction("no_fire");
     }
   }, [mqttData, thingspeakData]);
+
+  // Check data freshness every 5 seconds - if data is older than 30s, show NO FIRE
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const lastTime = isUsingMqtt ? mqttLastUpdated : (thingspeakTimestamp ? new Date(thingspeakTimestamp) : null);
+      if (!lastTime || (Date.now() - lastTime.getTime()) > 30000) {
+        setPrediction("no_fire");
+        setHasLiveData(false);
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [isUsingMqtt, mqttLastUpdated, thingspeakTimestamp]);
 
   const fetchLocation = async () => {
     try {

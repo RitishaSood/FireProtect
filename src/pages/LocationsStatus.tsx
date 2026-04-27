@@ -34,6 +34,10 @@ const LocationsStatus = () => {
   const [predictions, setPredictions] = useState<{ [key: string]: PredictionResult }>({});
   const [hasLiveData, setHasLiveData] = useState<{ [key: string]: boolean }>({});
   const [predictingIds, setPredictingIds] = useState<Set<string>>(new Set());
+  const [lastDataTime, setLastDataTime] = useState<{ [key: string]: Date }>({});
+
+  // Max concurrent ThingSpeak fetches to avoid overloading the network/edge
+  const FETCH_CONCURRENCY = 3;
 
   // MQTT for real-time updates
   const { sensorData: mqttData, connectionStatus, lastUpdated: mqttLastUpdated } = useMqtt();
@@ -42,11 +46,21 @@ const LocationsStatus = () => {
     fetchLocations();
   }, []);
 
+  // Self-refresh every 10 seconds
+  useEffect(() => {
+    if (locations.length === 0) return;
+    const interval = setInterval(() => {
+      refreshAll();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [locations]);
+
   // When MQTT data arrives, update the first location's sensor data
   useEffect(() => {
     if (mqttData && locations.length > 0) {
       const firstLocation = locations[0];
       setHasLiveData(prev => ({ ...prev, [firstLocation.id]: true }));
+      setLastDataTime(prev => ({ ...prev, [firstLocation.id]: new Date() }));
       setSensorData(prev => ({
         ...prev,
         [firstLocation.id]: {
@@ -58,15 +72,46 @@ const LocationsStatus = () => {
           created_at: new Date().toISOString(),
         }
       }));
-      runPrediction(firstLocation.id, {
-        gas: mqttData.gas,
-        flame: mqttData.flame,
-        temperature: mqttData.temperature,
-        humidity: mqttData.humidity,
-        pir: mqttData.pir,
+      const flameDetected = mqttData.flame === 1 || mqttData.flame === "1" || mqttData.flame === "FLAME";
+      runMlPrediction(firstLocation.id, {
+        gas: Number(mqttData.gas) || 0,
+        humidity: Number(mqttData.humidity) || 0,
+        temperature: Number(mqttData.temperature) || 0,
+        pir: Number(mqttData.pir) || 0,
+        flame: flameDetected ? "FLAME" : "NONE",
+        isFresh: true,
       });
     }
   }, [mqttData]);
+
+  // Check data freshness every 5 seconds - if data older than 30s, force NO FIRE
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setHasLiveData(prev => {
+        const updated = { ...prev };
+        for (const locId of Object.keys(updated)) {
+          const lastTime = lastDataTime[locId];
+          if (!lastTime || (now - lastTime.getTime()) > 30000) {
+            updated[locId] = false;
+          }
+        }
+        return updated;
+      });
+      // Stale data → no_fire
+      setPredictions(prev => {
+        const updated = { ...prev };
+        for (const locId of Object.keys(updated)) {
+          const lastTime = lastDataTime[locId];
+          if (!lastTime || (now - lastTime.getTime()) > 30000) {
+            updated[locId] = "no_fire";
+          }
+        }
+        return updated;
+      });
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [lastDataTime]);
 
   // Fallback: poll ThingSpeak when MQTT is disconnected
   useEffect(() => {
@@ -87,40 +132,66 @@ const LocationsStatus = () => {
       const { data, error } = await supabase.from("locations").select("*").order("name");
       if (error) throw error;
       setLocations(data || []);
-      data?.forEach(location => {
-        if (location.thingspeak_channel_id && location.thingspeak_read_key) {
-          fetchSensorData(location.id, location.name, location.thingspeak_channel_id, location.thingspeak_read_key);
-        }
-      });
+      await fetchInBatches(data || []);
     } catch (error) {
       toast({ title: "Error fetching locations", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
     }
   };
 
+  // Run sensor fetches with a bounded concurrency limit
+  const fetchInBatches = async (locs: Location[]) => {
+    const eligible = locs.filter(l => l.thingspeak_channel_id && l.thingspeak_read_key);
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < eligible.length) {
+        const idx = cursor++;
+        const loc = eligible[idx];
+        await fetchSensorData(loc.id, loc.name, loc.thingspeak_channel_id!, loc.thingspeak_read_key!);
+      }
+    };
+    const workers = Array.from(
+      { length: Math.min(FETCH_CONCURRENCY, eligible.length) },
+      () => worker()
+    );
+    await Promise.all(workers);
+  };
+
   const fetchSensorData = async (locationId: string, name: string, channelId: string, readKey: string) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('thingspeak-service', {
-        body: { action: 'latest', location: { name, thingspeak_channel_id: channelId, thingspeak_read_key: readKey } }
+      // Call ThingSpeak directly from browser to avoid overloading the edge function
+      const url = `https://api.thingspeak.com/channels/${channelId}/feeds/last.json?api_key=${readKey}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`ThingSpeak ${res.status}`);
+      const raw = await res.json();
+      const temperature = parseFloat(raw.field1);
+      const humidity = parseFloat(raw.field2);
+      const flame = raw.field3 == "0" ? "FLAME" : "NONE";
+      const gas = parseFloat(raw.field4);
+      const pir = raw.field5;
+      const sData = {
+        field1: temperature || 0,
+        field2: humidity || 0,
+        field3: flame,
+        field4: gas || 0,
+        field5: pir ?? "0",
+        created_at: raw.created_at,
+      };
+      setSensorData(prev => ({ ...prev, [locationId]: sData }));
+      // Use ThingSpeak's reading timestamp to enforce the 30s freshness rule
+      const readingTime = raw.created_at ? new Date(raw.created_at) : new Date();
+      const isFresh = (Date.now() - readingTime.getTime()) <= 30000;
+      setHasLiveData(prev => ({ ...prev, [locationId]: isFresh }));
+      setLastDataTime(prev => ({ ...prev, [locationId]: readingTime }));
+      runMlPrediction(locationId, {
+        gas: gas || 0,
+        humidity: humidity || 0,
+        temperature: temperature || 0,
+        pir: Number(pir) || 0,
+        flame,
+        isFresh,
       });
-      if (error) throw error;
-      if (data.success && data.data) {
-        const sData = {
-          field1: data.data.temperature || 0,
-          field2: data.data.humidity || 0,
-          field3: data.data.flame || 0,
-          field4: data.data.gas || 0,
-          field5: data.data.pir || 0,
-          created_at: data.data.timestamp,
-        };
-        setSensorData(prev => ({ ...prev, [locationId]: sData }));
-        setHasLiveData(prev => ({ ...prev, [locationId]: true }));
-        runPrediction(locationId, {
-          gas: data.data.gas, flame: data.data.flame, temperature: data.data.temperature,
-          humidity: data.data.humidity, pir: data.data.pir,
-        });
-        evaluateAlerts(locationId);
-      }
+      evaluateAlerts(locationId);
     } catch (error) {
       console.error(`Error fetching sensor data for ${locationId}:`, error);
     } finally {
@@ -128,20 +199,37 @@ const LocationsStatus = () => {
     }
   };
 
-  const runPrediction = async (locationId: string, sensors: any) => {
+  /**
+   * Calls the `fire-predictor` edge function (ML + threshold gate) and
+   * stores the resulting prediction. Stale data (>30s) is forced to
+   * "no_fire" without invoking the model.
+   */
+  const runMlPrediction = async (
+    locationId: string,
+    { gas, humidity, temperature, pir, flame, isFresh }:
+      { gas: number; humidity: number; temperature: number; pir: number; flame: string; isFresh: boolean }
+  ) => {
+    if (!isFresh) {
+      setPredictions(prev => ({ ...prev, [locationId]: "no_fire" }));
+      return;
+    }
     setPredictingIds(prev => new Set(prev).add(locationId));
     try {
       const { data, error } = await supabase.functions.invoke("fire-predictor", {
-        body: sensors,
+        body: { gas, flame, temperature, humidity, pir },
       });
       if (error) throw error;
-      if (data?.success) {
-        setPredictions(prev => ({ ...prev, [locationId]: data.prediction }));
+      if (data?.success && data?.prediction) {
+        setPredictions(prev => ({ ...prev, [locationId]: data.prediction as PredictionResult }));
       }
-    } catch (error) {
-      console.error("Prediction error:", error);
+    } catch (err) {
+      console.error("[runMlPrediction] error:", err);
     } finally {
-      setPredictingIds(prev => { const s = new Set(prev); s.delete(locationId); return s; });
+      setPredictingIds(prev => {
+        const next = new Set(prev);
+        next.delete(locationId);
+        return next;
+      });
     }
   };
 
@@ -154,11 +242,7 @@ const LocationsStatus = () => {
   };
 
   const refreshAll = () => {
-    locations.forEach(location => {
-      if (location.thingspeak_channel_id && location.thingspeak_read_key) {
-        fetchSensorData(location.id, location.name, location.thingspeak_channel_id, location.thingspeak_read_key);
-      }
-    });
+    fetchInBatches(locations);
   };
 
   return (
