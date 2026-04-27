@@ -96,7 +96,7 @@ serve(async (req) => {
 
     // -------------------------------------------------------------------
     // Deterministic threshold gate (corrects ML mispredictions):
-    //   true_fire   : flame detected AND gas < 2000 AND 40 ≤ temp ≤ 60
+    //   true_fire   : flame detected AND gas < 2500 AND 40 ≤ temp ≤ 60
     //   false_alarm : flame detected but thresholds not met
     //   no_fire     : no flame detected
     // The ML probabilities are preserved for transparency, but the
@@ -105,7 +105,7 @@ serve(async (req) => {
     let finalPrediction: 'true_fire' | 'false_alarm' | 'no_fire';
     if (!flameDetected) {
       finalPrediction = 'no_fire';
-    } else if (gasNum < 2000 && tempNum >= 40 && tempNum <= 60) {
+    } else if (gasNum < 2500 && tempNum >= 40 && tempNum <= 60) {
       finalPrediction = 'true_fire';
     } else {
       finalPrediction = 'false_alarm';
