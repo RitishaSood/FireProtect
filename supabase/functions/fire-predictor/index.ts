@@ -81,15 +81,42 @@ serve(async (req) => {
     }
 
     // Feature order must match training data: GAS, HUMIDITY, TEMPERATURE, PIR, FLAME
+    const flameDetected = flame === 'FLAME' || flame === 1 || flame === '1';
+    const gasNum = Number(gas);
+    const tempNum = Number(temperature);
     const features = [
-      Number(gas),
+      gasNum,
       Number(humidity ?? 0),
-      Number(temperature),
+      tempNum,
       Number(pir ?? 0),
-      Number(flame === 'FLAME' || flame === 1 || flame === '1' ? 1 : 0),
+      flameDetected ? 1 : 0,
     ];
 
-    const result = predictForest(features);
+    const mlResult = predictForest(features);
+
+    // -------------------------------------------------------------------
+    // Deterministic threshold gate (corrects ML mispredictions):
+    //   true_fire   : flame detected AND gas < 2000 AND 40 ≤ temp ≤ 60
+    //   false_alarm : flame detected but thresholds not met
+    //   no_fire     : no flame detected
+    // The ML probabilities are preserved for transparency, but the
+    // final `prediction` always honors the field-engineered rules.
+    // -------------------------------------------------------------------
+    let finalPrediction: 'true_fire' | 'false_alarm' | 'no_fire';
+    if (!flameDetected) {
+      finalPrediction = 'no_fire';
+    } else if (gasNum < 2000 && tempNum >= 40 && tempNum <= 60) {
+      finalPrediction = 'true_fire';
+    } else {
+      finalPrediction = 'false_alarm';
+    }
+
+    const result = {
+      ...mlResult,
+      prediction: finalPrediction,
+    };
+
+    console.log('[Fire Predictor] ML raw prediction:', mlResult.prediction, '→ gated:', finalPrediction);
 
     console.log('[Fire Predictor] Scaled features:', scaleFeatures(features));
     console.log('[Fire Predictor] Result:', result);
