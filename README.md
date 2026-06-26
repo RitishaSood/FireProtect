@@ -23,7 +23,7 @@ Unlike traditional fire alarms that rely solely on threshold-based detection, Fi
 - False Alarm
 - Safe Condition
 
-### Key Features
+### Key Features of the Project
 
 - Multi-sensor fire detection using Flame, Gas, Temperature, Humidity, and Motion sensing
 - Hybrid Machine Learning architecture for intelligent fire classification
