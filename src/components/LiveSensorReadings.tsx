@@ -9,6 +9,7 @@ import { useMqtt } from "@/hooks/useMqtt";
 import { Thermometer, Wind, Flame, Droplets, Activity, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
+import { fetchLatestSensorData } from "@/services/sensorData";
 
 interface Location {
   id: string;
@@ -111,14 +112,9 @@ export const LiveSensorReadings = () => {
   const fetchThingspeakData = async () => {
     if (!location) return;
     try {
-      const { data, error } = await supabase.functions.invoke("thingspeak-service", {
-        body: { action: "latest", location },
-      });
-      if (error) throw error;
-      if (data?.success && data?.data) {
-        setThingspeakData(data.data);
-        setThingspeakTimestamp(data.data.timestamp);
-      }
+      const result = await fetchLatestSensorData(location);
+      setThingspeakData(result.reading);
+      setThingspeakTimestamp(result.reading.timestamp);
     } catch (error) {
       console.error("Error fetching ThingSpeak data:", error);
     }

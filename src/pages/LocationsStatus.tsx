@@ -7,6 +7,7 @@ import { MqttStatusBadge } from "@/components/MqttStatusBadge";
 import { FirePredictionBadge, PredictionResult } from "@/components/FirePredictionBadge";
 import { useMqtt } from "@/hooks/useMqtt";
 import { useToast } from "@/hooks/use-toast";
+import { fetchLatestStatusSensorData } from "@/services/sensorData";
 import { RefreshCw, Thermometer, Droplets, Flame, Wind, Eye } from "lucide-react";
 
 interface SensorData {
@@ -160,26 +161,24 @@ const LocationsStatus = () => {
     setLoading(true);
     try {
       // Call ThingSpeak directly from browser to avoid overloading the edge function
-      const url = `https://api.thingspeak.com/channels/${channelId}/feeds/last.json?api_key=${readKey}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`ThingSpeak ${res.status}`);
-      const raw = await res.json();
-      const temperature = parseFloat(raw.field1);
-      const humidity = parseFloat(raw.field2);
-      const flame = raw.field3 == "0" ? "FLAME" : "NONE";
-      const gas = parseFloat(raw.field4);
-      const pir = raw.field5;
+      const { reading } = await fetchLatestStatusSensorData({
+        id: locationId,
+        name,
+        thingspeak_channel_id: channelId,
+        thingspeak_read_key: readKey,
+      });
+      const { temperature, humidity, flame, gas, pir, timestamp } = reading;
       const sData = {
         field1: temperature || 0,
         field2: humidity || 0,
-        field3: flame,
+        field3: flame === 0 || flame === "0" || flame === "FLAME" ? "FLAME" : "NONE",
         field4: gas || 0,
-        field5: pir ?? "0",
-        created_at: raw.created_at,
+        field5: String(pir ?? "0"),
+        created_at: timestamp,
       };
       setSensorData(prev => ({ ...prev, [locationId]: sData }));
       // Use ThingSpeak's reading timestamp to enforce the 30s freshness rule
-      const readingTime = raw.created_at ? new Date(raw.created_at) : new Date();
+      const readingTime = timestamp ? new Date(timestamp) : new Date();
       const isFresh = (Date.now() - readingTime.getTime()) <= 30000;
       setHasLiveData(prev => ({ ...prev, [locationId]: isFresh }));
       setLastDataTime(prev => ({ ...prev, [locationId]: readingTime }));

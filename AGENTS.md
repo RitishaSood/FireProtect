@@ -1,0 +1,1 @@
+- Keep sensor reads and history behind `src/services/sensorData.ts`, using one normalized reading shape; Supabase remains the default and DynamoDB may only use a secure HTTPS API endpoint, so the interface can switch without changing screens.

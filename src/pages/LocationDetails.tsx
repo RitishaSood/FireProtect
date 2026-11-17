@@ -10,6 +10,7 @@ import { ArrowLeft, Navigation, RefreshCw, Flame, Wind, Thermometer, Droplets, E
 import { useToast } from "@/hooks/use-toast";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { fetchLatestSensorData, fetchSensorHistory } from "@/services/sensorData";
 
 interface Location {
   id: string;
@@ -87,21 +88,9 @@ const LocationDetails = () => {
     if (!location?.thingspeak_channel_id || !location?.thingspeak_read_key) return;
 
     try {
-      const { data, error } = await supabase.functions.invoke("thingspeak-service", {
-        body: {
-          action: "latest",
-          location: {
-            thingspeak_channel_id: location.thingspeak_channel_id,
-            thingspeak_read_key: location.thingspeak_read_key,
-          },
-        },
-      });
-
-      if (error) throw error;
-      if (data.success) {
-        setSensorData(data.data);
-        setRawData(data.data);
-      }
+      const result = await fetchLatestSensorData(location);
+      setSensorData(result.reading as SensorData);
+      setRawData(result.raw);
     } catch (error) {
       console.error("Error fetching sensor data:", error);
     }
@@ -111,28 +100,15 @@ const LocationDetails = () => {
     if (!location?.thingspeak_channel_id || !location?.thingspeak_read_key) return;
 
     try {
-      const { data, error } = await supabase.functions.invoke("thingspeak-service", {
-        body: {
-          action: "history",
-          location: {
-            thingspeak_channel_id: location.thingspeak_channel_id,
-            thingspeak_read_key: location.thingspeak_read_key,
-          },
-          results: 50,
-        },
-      });
-
-      if (error) throw error;
-      if (data.success) {
-        const formattedData = data.data.map((item: any) => ({
-          timestamp: new Date(item.timestamp).toLocaleTimeString(),
-          flame: parseFloat(item.flame) || 0,
-          gas: item.gas || 0,
-          temperature: item.temperature || 0,
-          humidity: item.humidity || 0,
-        }));
-        setHistoricalData(formattedData);
-      }
+      const history = await fetchSensorHistory(location, 50);
+      const formattedData = history.map((item) => ({
+        timestamp: item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : "",
+        flame: parseFloat(String(item.flame)) || 0,
+        gas: item.gas || 0,
+        temperature: item.temperature || 0,
+        humidity: item.humidity || 0,
+      }));
+      setHistoricalData(formattedData);
     } catch (error) {
       console.error("Error fetching historical data:", error);
     }
