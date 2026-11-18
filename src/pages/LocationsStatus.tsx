@@ -187,7 +187,7 @@ const LocationsStatus = () => {
         humidity: humidity || 0,
         temperature: temperature || 0,
         pir: Number(pir) || 0,
-        flame,
+        flame: sData.field3,
         isFresh,
       });
       evaluateAlerts(locationId);

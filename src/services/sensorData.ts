@@ -44,6 +44,9 @@ const asNumber = (value: unknown): number => {
   return 0;
 };
 
+const asScalar = (value: unknown): number | string =>
+  typeof value === "number" || typeof value === "string" ? value : "";
+
 const normalizeReading = (value: unknown): SensorReading => {
   const record = asRecord(value);
   const timestamp = firstDefined(record.eventTimestamp, record.timestamp, record.created_at);
@@ -51,9 +54,9 @@ const normalizeReading = (value: unknown): SensorReading => {
   return {
     temperature: asNumber(firstDefined(record.temperature, record.field1)),
     humidity: asNumber(firstDefined(record.humidity, record.field2)),
-    flame: (firstDefined(record.flame, record.field3) as number | string | undefined) ?? "",
+    flame: asScalar(firstDefined(record.flame, record.field3)),
     gas: asNumber(firstDefined(record.gas, record.field4)),
-    pir: (firstDefined(record.pir, record.field5) as number | string | undefined) ?? "",
+    pir: asScalar(firstDefined(record.pir, record.field5)),
     timestamp: typeof timestamp === "string" ? timestamp : "",
   };
 };
@@ -102,8 +105,8 @@ const normalizeThingSpeakLatest = (value: unknown): SensorReadingResult => {
   return {
     reading: {
       ...reading,
-      flame: record.flame ?? (String(record.field3) === "0" ? "FLAME" : "NONE"),
-      pir: record.pir ?? record.field5 ?? "",
+      flame: asScalar(record.flame) || (String(record.field3) === "0" ? "FLAME" : "NONE"),
+      pir: asScalar(firstDefined(record.pir, record.field5)),
     },
     raw,
   };

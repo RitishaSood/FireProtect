@@ -53,9 +53,15 @@ const LocationDetails = () => {
 
   useEffect(() => {
     fetchLocationData();
-    const interval = setInterval(fetchSensorData, 10000);
-    return () => clearInterval(interval);
   }, [id]);
+
+  useEffect(() => {
+    if (!location?.thingspeak_channel_id || !location.thingspeak_read_key) return;
+    const interval = setInterval(() => {
+      fetchSensorData(location);
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [location]);
 
   const fetchLocationData = async () => {
     try {
@@ -70,8 +76,10 @@ const LocationDetails = () => {
       setLocation(data as Location);
       
       if (data.thingspeak_channel_id && data.thingspeak_read_key) {
-        await fetchSensorData();
-        await fetchHistoricalData();
+        await Promise.all([
+          fetchSensorData(data as Location),
+          fetchHistoricalData(data as Location),
+        ]);
       }
     } catch (error) {
       toast({
@@ -84,11 +92,11 @@ const LocationDetails = () => {
     }
   };
 
-  const fetchSensorData = async () => {
-    if (!location?.thingspeak_channel_id || !location?.thingspeak_read_key) return;
+  const fetchSensorData = async (targetLocation: Location | null = location) => {
+    if (!targetLocation?.thingspeak_channel_id || !targetLocation?.thingspeak_read_key) return;
 
     try {
-      const result = await fetchLatestSensorData(location);
+      const result = await fetchLatestSensorData(targetLocation);
       setSensorData(result.reading as SensorData);
       setRawData(result.raw);
     } catch (error) {
@@ -96,11 +104,11 @@ const LocationDetails = () => {
     }
   };
 
-  const fetchHistoricalData = async () => {
-    if (!location?.thingspeak_channel_id || !location?.thingspeak_read_key) return;
+  const fetchHistoricalData = async (targetLocation: Location | null = location) => {
+    if (!targetLocation?.thingspeak_channel_id || !targetLocation?.thingspeak_read_key) return;
 
     try {
-      const history = await fetchSensorHistory(location, 50);
+      const history = await fetchSensorHistory(targetLocation, 50);
       const formattedData = history.map((item) => ({
         timestamp: item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : "",
         flame: parseFloat(String(item.flame)) || 0,
@@ -116,8 +124,8 @@ const LocationDetails = () => {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await fetchSensorData();
-    await fetchHistoricalData();
+    await fetchSensorData(location);
+    await fetchHistoricalData(location);
     setIsRefreshing(false);
     toast({
       title: "Data refreshed",
